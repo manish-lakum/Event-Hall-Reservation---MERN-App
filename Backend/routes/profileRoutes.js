@@ -7,7 +7,9 @@ const { protect } = require('../middleware/authMiddleware');
 router.use(protect);
 
 router.get('/', getProfile);
+router.put('/', updateProfile);
 router.patch('/', updateProfile);
+router.put('/change-password', changePassword);
 router.patch('/change-password', changePassword);
 
 module.exports = router;

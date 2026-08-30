@@ -14,7 +14,9 @@ const { protect } = require('../middleware/authMiddleware');
 // ----------------------------------------------------
 router.post('/', protect, createReservation);
 router.get('/my', protect, getMyReservations);
+router.get('/my-reservations', protect, getMyReservations);
 router.get('/:id', protect, getReservationById);
+router.put('/:id/cancel', protect, cancelReservation);
 router.patch('/:id/cancel', protect, cancelReservation);
 
 module.exports = router;

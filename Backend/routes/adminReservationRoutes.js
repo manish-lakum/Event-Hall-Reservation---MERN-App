@@ -15,7 +15,9 @@ const { authorizeRoles } = require('../middleware/roleMiddleware');
 // ----------------------------------------------------
 router.get('/', protect, authorizeRoles('ADMIN'), getAllReservations);
 router.get('/:id', protect, authorizeRoles('ADMIN'), getReservationById);
+router.put('/:id/approve', protect, authorizeRoles('ADMIN'), approveReservation);
 router.patch('/:id/approve', protect, authorizeRoles('ADMIN'), approveReservation);
+router.put('/:id/reject', protect, authorizeRoles('ADMIN'), rejectReservation);
 router.patch('/:id/reject', protect, authorizeRoles('ADMIN'), rejectReservation);
 
 module.exports = router;

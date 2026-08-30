@@ -24,5 +24,7 @@ router.get('/events', getEventReport);
 router.get('/users', getUserReport);
 router.get('/monthly', getMonthlyReport);
 router.get('/dashboard', getReportDashboard);
+router.get('/analytics', getReportDashboard);
+router.get('/export-csv', getReservationReport);
 
 module.exports = router;
