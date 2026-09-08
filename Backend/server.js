@@ -44,8 +44,8 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Body Parsing Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Mount Application Routes
 app.use('/api/health', healthRoutes);
@@ -59,6 +59,7 @@ app.use('/api', dashboardRoutes);             // Mounts /api/dashboard/user and 
 app.use('/api', calendarRoutes);              // Mounts /api/calendar/user, /api/admin/calendar, /api/admin/calendar/today
 app.use('/api/notifications', notificationRoutes); // Mounts /api/notifications endpoints
 app.use('/api/profile', profileRoutes);        // Mounts /api/profile endpoints
+app.use('/api/users', profileRoutes);          // Mounts /api/users/me/profile-photo endpoints
 app.use('/api/admin/users', adminUserRoutes);  // Mounts /api/admin/users endpoints
 app.use('/api/admin/reports', reportRoutes);  // Mounts /api/admin/reports endpoints
 

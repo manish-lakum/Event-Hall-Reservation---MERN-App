@@ -9,7 +9,8 @@
     "dev": "nodemon server.js",
     "seed:admin": "node scripts/seedAdmin.js",
     "seed:halls": "node scripts/seedHalls.js",
-    "seed:demo": "node seed/seedDemoData.js"
+    "seed:demo": "node seed/seedDemoData.js",
+    "cleanup:demo": "node scripts/cleanupDemoData.js"
   },
   "keywords": [
     "college",

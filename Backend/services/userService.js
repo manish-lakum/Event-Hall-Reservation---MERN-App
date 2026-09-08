@@ -20,7 +20,7 @@ const getUserProfile = async (userId) => {
  * Update Logged-in User Profile (Safe fields only)
  */
 const updateUserProfile = async (userId, updateData) => {
-  const { name, department, phone, userType } = updateData;
+  const { name, department, phone, userType, profilePhoto } = updateData;
 
   const safeUpdates = {};
 
@@ -39,6 +39,10 @@ const updateUserProfile = async (userId, updateData) => {
     safeUpdates.phone = String(phone).trim();
   }
 
+  if (profilePhoto !== undefined) {
+    safeUpdates.profilePhoto = String(profilePhoto).trim();
+  }
+
   if (userType !== undefined) {
     const formattedType = String(userType).toUpperCase();
     if (!ALLOWED_USER_TYPES.includes(formattedType)) {
@@ -52,6 +56,37 @@ const updateUserProfile = async (userId, updateData) => {
     { $set: safeUpdates },
     { new: true, runValidators: true }
   ).select('-password');
+
+  return updatedUser;
+};
+
+/**
+ * Update Logged-in User Profile Photo
+ */
+const updateProfilePhoto = async (userId, profilePhoto) => {
+  if (!profilePhoto || String(profilePhoto).trim().length === 0) {
+    throw new Error('Profile photo is required');
+  }
+
+  const photoStr = String(profilePhoto).trim();
+
+  // Validate format if Data URI
+  if (photoStr.startsWith('data:')) {
+    const isSupportedFormat = /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(photoStr);
+    if (!isSupportedFormat) {
+      throw new Error('Invalid image format. Only JPG, PNG, and WEBP images are supported');
+    }
+  }
+
+  const updatedUser = await User.findByIdAndUpdate(
+    userId,
+    { $set: { profilePhoto: photoStr } },
+    { new: true, runValidators: true }
+  ).select('-password');
+
+  if (!updatedUser) {
+    throw new Error('User profile not found');
+  }
 
   return updatedUser;
 };
@@ -263,6 +298,7 @@ const toggleUserStatusAdmin = async (targetUserId, currentAdminId, isActive) => 
 module.exports = {
   getUserProfile,
   updateUserProfile,
+  updateProfilePhoto,
   changeUserPassword,
   getAllUsersAdmin,
   getUserByIdAdmin,

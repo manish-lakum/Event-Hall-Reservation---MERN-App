@@ -47,6 +47,7 @@ const registerUser = async (req, res, next) => {
       department: user.department,
       collegeId: user.collegeId,
       phone: user.phone,
+      profilePhoto: user.profilePhoto || '',
       isActive: user.isActive,
       createdAt: user.createdAt
     };
@@ -105,6 +106,7 @@ const loginUser = async (req, res, next) => {
       department: user.department,
       collegeId: user.collegeId,
       phone: user.phone,
+      profilePhoto: user.profilePhoto || '',
       isActive: user.isActive,
       createdAt: user.createdAt
     };
@@ -136,6 +138,7 @@ const getMe = async (req, res, next) => {
       department: u.department,
       collegeId: u.collegeId,
       phone: u.phone,
+      profilePhoto: u.profilePhoto || '',
       isActive: u.isActive,
       createdAt: u.createdAt
     };

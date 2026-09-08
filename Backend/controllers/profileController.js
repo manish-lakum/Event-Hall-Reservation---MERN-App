@@ -1,6 +1,7 @@
 const {
   getUserProfile,
   updateUserProfile,
+  updateProfilePhoto,
   changeUserPassword
 } = require('../services/userService');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
@@ -37,6 +38,32 @@ const updateProfile = async (req, res, next) => {
 };
 
 /**
+ * @desc    Upload / Update Current Logged-in User Profile Photo
+ * @route   PATCH /api/profile/photo
+ * @access  Private (User / Admin)
+ */
+const uploadPhoto = async (req, res, next) => {
+  try {
+    const { profilePhoto } = req.body;
+    if (!profilePhoto) {
+      return sendError(res, 400, 'Please select a profile photo to upload.');
+    }
+
+    const updatedUser = await updateProfilePhoto(req.user._id, profilePhoto);
+    return sendSuccess(res, 200, 'Profile photo updated successfully', { user: updatedUser });
+  } catch (error) {
+    if (
+      error.message.includes('required') ||
+      error.message.includes('Invalid image format') ||
+      error.message.includes('supported')
+    ) {
+      return sendError(res, 400, error.message);
+    }
+    next(error);
+  }
+};
+
+/**
  * @desc    Change Current Logged-in User Password
  * @route   PATCH /api/profile/change-password
  * @access  Private (User / Admin)
@@ -62,5 +89,6 @@ const changePassword = async (req, res, next) => {
 module.exports = {
   getProfile,
   updateProfile,
+  uploadPhoto,
   changePassword
 };
