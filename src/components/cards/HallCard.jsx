@@ -1,9 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Users, MapPin, CheckCircle, ArrowRight, ShieldCheck } from 'lucide-react';
+import { Users, MapPin, CheckCircle, ArrowRight } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 
-const HallCard = ({ hall, isAdmin = false, onToggleStatus, onDelete }) => {
+const HallCard = ({ hall, isAdmin = false, onToggleStatus }) => {
   const { id, name, type, capacity, location, description, facilities, image, status } = hall;
 
   return (

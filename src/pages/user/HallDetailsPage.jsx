@@ -34,7 +34,7 @@ const HallDetailsPage = () => {
           const found = halls.find(h => h.id === id);
           if (found) setHallData(found);
         }
-      } catch (err) {
+      } catch {
         const found = halls.find(h => h.id === id);
         if (found) setHallData(found);
       } finally {

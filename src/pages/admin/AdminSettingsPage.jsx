@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
-import { Settings, Save, CheckCircle, ShieldCheck, Building2, Sliders, User, Camera } from 'lucide-react';
+import { Save, CheckCircle, Building2, Sliders, Camera } from 'lucide-react';
 
 const defaultSettings = {
   collegeName: 'Sardar Vallabhbhai Global University (SVGU)',

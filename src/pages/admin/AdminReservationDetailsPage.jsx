@@ -36,7 +36,7 @@ const AdminReservationDetailsPage = () => {
         const found = reservations.find(r => r.id === id);
         if (found) setReservationData(found);
       }
-    } catch (err) {
+    } catch {
       const found = reservations.find(r => r.id === id);
       if (found) setReservationData(found);
     } finally {

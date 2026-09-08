@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, MapPin, Use
 import Modal from '../common/Modal';
 import StatusBadge from '../common/StatusBadge';
 
-const CalendarView = ({ reservations = [], blockedSlots = [], halls = [] }) => {
+const CalendarView = ({ reservations = [], blockedSlots = [] }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState(null);
 
