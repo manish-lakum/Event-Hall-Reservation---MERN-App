@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const { Hall } = require('../models/Hall');
 const { HallBlock, ALLOWED_BLOCK_REASONS } = require('../models/HallBlock');
-const { checkBlockConflict, isPastDate } = require('../services/availabilityService');
+const { checkBlockConflict, isPastDate, validateTimeSlotNotPassed } = require('../services/availabilityService');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 
 /**
@@ -37,9 +37,16 @@ const createHallBlock = async (req, res, next) => {
       return sendError(res, 404, 'Hall not found');
     }
 
-    // Check Past Date
-    if (isPastDate(startDate)) {
-      return sendError(res, 400, 'Cannot create maintenance blocks for past dates');
+    // Check Past Date & Same-Day Expired Time Slot
+    const timeValidation = validateTimeSlotNotPassed(startDate, startTime);
+    if (timeValidation.expired) {
+      return sendError(
+        res,
+        400,
+        timeValidation.isSameDayExpired
+          ? 'Cannot create maintenance blocks for a time slot that has already passed'
+          : 'Cannot create maintenance blocks for past dates'
+      );
     }
 
     // Validate Date Order (endDate >= startDate)

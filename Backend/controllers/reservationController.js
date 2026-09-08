@@ -5,7 +5,8 @@ const {
   verifyHallAvailability,
   checkBlockConflict,
   checkReservationConflict,
-  isPastDate
+  isPastDate,
+  validateTimeSlotNotPassed
 } = require('../services/availabilityService');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { notifyUser, notifyAdmins } = require('../services/notificationService');
@@ -51,15 +52,22 @@ const createReservation = async (req, res, next) => {
       return sendError(res, 400, 'Hall is currently disabled/inactive and cannot be reserved');
     }
 
-    // Validate Past Date
-    if (isPastDate(eventDate)) {
-      return sendError(res, 400, 'Cannot create reservations for past dates');
-    }
-
     // Validate Time Format (HH:mm)
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
     if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
       return sendError(res, 400, 'Time format must be HH:mm 24-hr (e.g. 10:00)');
+    }
+
+    // Validate Past Date & Same-Day Expired Time Slot
+    const timeValidation = validateTimeSlotNotPassed(eventDate, startTime);
+    if (timeValidation.expired) {
+      return sendError(
+        res,
+        400,
+        timeValidation.isSameDayExpired
+          ? 'Cannot create a reservation for a time slot that has already passed'
+          : 'Cannot create reservations for past dates'
+      );
     }
 
     // Validate Time Order (endTime > startTime)

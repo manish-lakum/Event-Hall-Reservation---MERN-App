@@ -283,7 +283,8 @@ const updateHall = async (req, res, next) => {
       openingTime,
       closingTime,
       facilities,
-      image
+      image,
+      isActive
     } = req.body;
 
     // Validate Capacity if provided
@@ -324,6 +325,7 @@ const updateHall = async (req, res, next) => {
     }
 
     // Update other fields
+    if (isActive !== undefined) hall.isActive = Boolean(isActive);
     if (description !== undefined) hall.description = description.trim();
     if (location !== undefined) hall.location = location.trim();
     if (openingTime !== undefined) hall.openingTime = openingTime;

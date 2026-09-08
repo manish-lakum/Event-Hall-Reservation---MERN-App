@@ -4,6 +4,69 @@ const { HallBlock } = require('../models/HallBlock');
 const { Reservation } = require('../models/Reservation');
 
 /**
+ * Helper to get current Date string (YYYY-MM-DD) and Time string (HH:mm) in Asia/Kolkata (IST).
+ */
+const getISTCurrentDateTime = () => {
+  const now = new Date();
+  
+  // Format YYYY-MM-DD in Asia/Kolkata
+  const dateStr = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+  
+  // Format HH:mm in Asia/Kolkata (24-hour)
+  const timeStr = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour12: false }).substring(0, 5);
+
+  return { dateStr, timeStr, now };
+};
+
+/**
+ * Validate that a requested date and start time slot has not already passed in IST time.
+ * @param {string} dateStr YYYY-MM-DD
+ * @param {string} startTimeStr HH:mm (optional 24-hr format)
+ */
+const validateTimeSlotNotPassed = (dateStr, startTimeStr = null) => {
+  const { dateStr: currentDateStr, timeStr: currentTimeStr } = getISTCurrentDateTime();
+
+  // Case A: Date before today
+  if (dateStr < currentDateStr) {
+    return {
+      expired: true,
+      isPastDate: true,
+      isSameDayExpired: false,
+      reason: 'PAST_DATE',
+      message: 'Cannot check availability or create reservations for past dates'
+    };
+  }
+
+  // Case B: Same-day date, check if start time has passed
+  if (dateStr === currentDateStr && startTimeStr) {
+    if (startTimeStr <= currentTimeStr) {
+      return {
+        expired: true,
+        isPastDate: false,
+        isSameDayExpired: true,
+        reason: 'PAST_TIME',
+        message: 'Requested time slot has already passed'
+      };
+    }
+  }
+
+  // Case C: Valid future date or future same-day slot
+  return {
+    expired: false,
+    isPastDate: false,
+    isSameDayExpired: false
+  };
+};
+
+/**
+ * Check if date string is a past date before today (YYYY-MM-DD)
+ */
+const isPastDate = (dateStr) => {
+  const { dateStr: currentDateStr } = getISTCurrentDateTime();
+  return dateStr < currentDateStr;
+};
+
+/**
  * Check if two time slots overlap in 24-hr HH:mm format.
  * Condition: startA < endB AND endA > startB
  * Adjacent/Touching bounds (e.g., 10:00-12:00 and 12:00-13:00) return FALSE (no overlap).
@@ -17,17 +80,6 @@ const checkSlotOverlap = (startA, endA, startB, endB) => {
  */
 const checkDateRangeOverlap = (startDateA, endDateA, startDateB, endDateB) => {
   return startDateA <= endDateB && endDateA >= startDateB;
-};
-
-/**
- * Check if date string is a past date before today (00:00:00)
- */
-const isPastDate = (dateStr) => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const targetDate = new Date(`${dateStr}T00:00:00`);
-  return targetDate < today;
 };
 
 /**
@@ -55,20 +107,34 @@ const verifyHallAvailability = async (hallId, targetDate, startTime, endTime) =>
     return { available: false, statusCode: 400, errorMsg: 'Invalid or missing date. Format: YYYY-MM-DD' };
   }
 
-  // 5. Validate Past Date
-  if (isPastDate(targetDate)) {
-    return { available: false, statusCode: 400, errorMsg: 'Cannot check availability for past dates' };
-  }
-
-  // 6. Validate Time Formats (HH:mm)
+  // 5. Validate Time Formats (HH:mm)
   const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
   if (!startTime || !timeRegex.test(startTime) || !endTime || !timeRegex.test(endTime)) {
     return { available: false, statusCode: 400, errorMsg: 'Invalid or missing time slot. Format: HH:mm 24-hr (e.g. 10:00)' };
   }
 
-  // 7. Validate Start Time < End Time
+  // 6. Validate Start Time < End Time
   if (endTime <= startTime) {
     return { available: false, statusCode: 400, errorMsg: 'End time must be later than start time' };
+  }
+
+  // 7. Validate Date & Time Slot Expiry (Past Date or Same-Day Past Time)
+  const timeValidation = validateTimeSlotNotPassed(targetDate, startTime);
+  if (timeValidation.expired) {
+    if (timeValidation.isSameDayExpired) {
+      return {
+        available: false,
+        statusCode: 200,
+        result: {
+          available: false,
+          isAvailable: false,
+          reason: 'PAST_TIME',
+          message: 'Requested time slot has already passed'
+        }
+      };
+    } else {
+      return { available: false, statusCode: 400, errorMsg: timeValidation.message };
+    }
   }
 
   // 8. Validate Hall Operating Hours
@@ -94,6 +160,7 @@ const verifyHallAvailability = async (hallId, targetDate, startTime, endTime) =>
           statusCode: 200,
           result: {
             available: false,
+            isAvailable: false,
             reason: `Hall is blocked for ${block.reason.toLowerCase()}${block.notes ? `: ${block.notes}` : ''}`,
             blockedSlot: {
               blockId: block._id,
@@ -123,6 +190,7 @@ const verifyHallAvailability = async (hallId, targetDate, startTime, endTime) =>
         statusCode: 200,
         result: {
           available: false,
+          isAvailable: false,
           reason: `Hall has a ${resItem.status.toLowerCase()} reservation for '${resItem.eventTitle}' (${resItem.startTime} - ${resItem.endTime})`,
           reservedSlot: {
             reservationId: resItem._id,
@@ -143,6 +211,7 @@ const verifyHallAvailability = async (hallId, targetDate, startTime, endTime) =>
     statusCode: 200,
     result: {
       available: true,
+      isAvailable: true,
       hallId: hall._id,
       hallName: hall.hallName,
       date: targetDate,
@@ -210,6 +279,8 @@ const checkReservationConflict = async (hallId, eventDate, startTime, endTime, e
 };
 
 module.exports = {
+  getISTCurrentDateTime,
+  validateTimeSlotNotPassed,
   checkSlotOverlap,
   checkDateRangeOverlap,
   isPastDate,

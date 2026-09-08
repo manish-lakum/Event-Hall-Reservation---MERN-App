@@ -126,9 +126,20 @@ const loginUser = async (req, res, next) => {
 const getMe = async (req, res, next) => {
   try {
     // req.user is attached by authMiddleware protect function
-    return sendSuccess(res, 200, 'User profile retrieved successfully', {
-      user: req.user
-    });
+    const u = req.user;
+    const userResponse = {
+      _id: u._id,
+      name: u.name,
+      email: u.email,
+      role: u.role,
+      userType: u.userType,
+      department: u.department,
+      collegeId: u.collegeId,
+      phone: u.phone,
+      isActive: u.isActive,
+      createdAt: u.createdAt
+    };
+    return sendSuccess(res, 200, 'User profile retrieved successfully', userResponse);
   } catch (error) {
     next(error);
   }
