@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import { reservationService } from '../../services/reservationService';
 import StatusBadge from '../../components/common/StatusBadge';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
@@ -8,35 +9,91 @@ import {
   ArrowLeft,
   User,
   Building2,
-  Calendar,
-  Clock,
   Check,
   X,
-  ShieldCheck,
-  CheckCircle2,
-  FileText
+  ShieldCheck
 } from 'lucide-react';
 
 const AdminReservationDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { reservations, approveReservation, rejectReservation } = useApp();
+  const { reservations, approveReservation, rejectReservation, mapReservation } = useApp();
 
-  const reservation = reservations.find(r => r.id === id) || reservations[0];
+  const [reservationData, setReservationData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
 
-  const handleConfirmReject = () => {
+  const loadDetail = async () => {
+    try {
+      setLoading(true);
+      const res = await reservationService.getAdminReservationById(id);
+      if (res.success && res.data) {
+        setReservationData(mapReservation(res.data));
+      } else {
+        const found = reservations.find(r => r.id === id);
+        if (found) setReservationData(found);
+      }
+    } catch (err) {
+      const found = reservations.find(r => r.id === id);
+      if (found) setReservationData(found);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (id) loadDetail();
+  }, [id]);
+
+  const reservation = reservationData || reservations.find(r => r.id === id) || reservations[0];
+
+  const handleConfirmApprove = async () => {
+    if (!reservation?.id) return;
+    try {
+      const res = await approveReservation(reservation.id);
+      if (res.success) {
+        setApproveConfirmOpen(false);
+        await loadDetail();
+      }
+    } catch (err) {
+      console.error('Approve failed:', err.message);
+    }
+  };
+
+  const handleConfirmReject = async () => {
     if (!rejectReason.trim()) {
       alert('Please enter a rejection reason.');
       return;
     }
-    rejectReservation(reservation.id, rejectReason);
-    setRejectModalOpen(false);
-    setRejectReason('');
+    try {
+      const res = await rejectReservation(reservation.id, rejectReason);
+      if (res.success) {
+        setRejectModalOpen(false);
+        setRejectReason('');
+        await loadDetail();
+      }
+    } catch (err) {
+      console.error('Reject failed:', err.message);
+    }
   };
+
+  if (loading && !reservation) {
+    return <div className="text-center py-12 text-slate-500 text-xs font-semibold">Loading reservation details...</div>;
+  }
+
+  if (!reservation) {
+    return (
+      <div className="text-center py-12 space-y-4">
+        <h2 className="text-xl font-bold text-[#4338CA]">Reservation Not Found</h2>
+        <button onClick={() => navigate('/admin/reservations')} className="bg-[#0D9488] text-white px-4 py-2 rounded-lg text-xs font-bold cursor-pointer">
+          Back to Reservation Table
+        </button>
+      </div>
+    );
+  }
 
   const isPending = reservation?.status === 'Pending';
 
@@ -46,13 +103,13 @@ const AdminReservationDetailsPage = () => {
       <div className="flex items-center justify-between">
         <button
           onClick={() => navigate('/admin/reservations')}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#4338CA] hover:underline bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#4338CA] hover:underline bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Back to Reservation Table
         </button>
 
-        <span className="text-xs font-mono font-bold text-slate-500">ID: {reservation?.id}</span>
+        <span className="text-xs font-mono font-bold text-slate-500">ID: {String(reservation?.id).slice(-8)}</span>
       </div>
 
       {/* Main Detail Card */}
@@ -86,7 +143,6 @@ const AdminReservationDetailsPage = () => {
               <div><strong>Email:</strong> {reservation?.userEmail}</div>
               <div><strong>Role:</strong> {reservation?.userType}</div>
               <div><strong>Department:</strong> {reservation?.department}</div>
-              <div><strong>Employee/Enroll ID:</strong> {reservation?.employeeId}</div>
               <div><strong>Submitted On:</strong> {reservation?.requestedOn}</div>
             </div>
           </div>
@@ -128,13 +184,13 @@ const AdminReservationDetailsPage = () => {
           </div>
 
           {/* Admin Remarks if exists */}
-          {reservation?.adminRemarks && (
+          {(reservation?.adminRemarks || reservation?.rejectionReason) && (
             <div className={`p-4 rounded-xl border ${reservation.status === 'Rejected' ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-teal-50 border-teal-200 text-teal-900'} space-y-1`}>
               <div className="font-bold flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-[#0D9488]" />
                 Admin Remarks Record:
               </div>
-              <p className="pl-5 font-medium">{reservation.adminRemarks}</p>
+              <p className="pl-5 font-medium">{reservation.adminRemarks || reservation.rejectionReason}</p>
             </div>
           )}
         </div>
@@ -144,13 +200,13 @@ const AdminReservationDetailsPage = () => {
           <div className="bg-slate-100 p-6 border-t border-slate-200 flex items-center justify-end gap-3">
             <button
               onClick={() => setRejectModalOpen(true)}
-              className="px-5 py-2.5 bg-rose-600 text-white hover:bg-rose-700 rounded-xl font-bold text-xs shadow-xs flex items-center gap-1.5"
+              className="px-5 py-2.5 bg-rose-600 text-white hover:bg-rose-700 rounded-xl font-bold text-xs shadow-xs flex items-center gap-1.5 cursor-pointer"
             >
               <X className="w-4 h-4" /> Reject Request
             </button>
             <button
               onClick={() => setApproveConfirmOpen(true)}
-              className="px-6 py-2.5 bg-[#0D9488] text-white hover:bg-teal-700 rounded-xl font-extrabold text-xs shadow-md flex items-center gap-1.5"
+              className="px-6 py-2.5 bg-[#0D9488] text-white hover:bg-teal-700 rounded-xl font-extrabold text-xs shadow-md flex items-center gap-1.5 cursor-pointer"
             >
               <Check className="w-4 h-4" /> Approve Request
             </button>
@@ -162,12 +218,9 @@ const AdminReservationDetailsPage = () => {
       <ConfirmDialog
         isOpen={approveConfirmOpen}
         onClose={() => setApproveConfirmOpen(false)}
-        onConfirm={() => {
-          approveReservation(reservation.id);
-          setApproveConfirmOpen(false);
-        }}
+        onConfirm={handleConfirmApprove}
         title="Approve Reservation Request"
-        message={`Are you sure you want to approve request ${reservation?.id} for ${reservation?.hallName}?`}
+        message={`Are you sure you want to approve request for ${reservation?.hallName}?`}
         confirmText="Approve Request"
       />
 
@@ -181,13 +234,13 @@ const AdminReservationDetailsPage = () => {
           <>
             <button
               onClick={() => setRejectModalOpen(false)}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-lg"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-lg cursor-pointer"
             >
               Cancel
             </button>
             <button
               onClick={handleConfirmReject}
-              className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg"
+              className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg cursor-pointer"
             >
               Confirm Rejection
             </button>
@@ -196,7 +249,7 @@ const AdminReservationDetailsPage = () => {
       >
         <div className="space-y-4">
           <p className="text-xs text-slate-600">
-            Please enter the official reason for declining request <strong>{reservation?.id}</strong>:
+            Please enter the official reason for declining request for <strong>{reservation?.eventTitle}</strong>:
           </p>
           <textarea
             rows={3}

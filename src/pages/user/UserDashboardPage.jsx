@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import { dashboardService } from '../../services/dashboardService';
 import DashboardCard from '../../components/cards/DashboardCard';
 import StatusBadge from '../../components/common/StatusBadge';
 import {
@@ -12,27 +13,56 @@ import {
   PlusCircle,
   Search,
   ArrowRight,
-  User,
-  MapPin,
   AlertCircle
 } from 'lucide-react';
 
 const UserDashboardPage = () => {
-  const { currentUser, reservations, halls } = useApp();
+  const { currentUser, halls, mapReservation } = useApp();
+  const [dashboardData, setDashboardData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // User specific reservations
-  const userReservations = reservations.filter(r => r.userId === currentUser?.id || r.userEmail === currentUser?.email);
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const dashRes = await dashboardService.getUserDashboard();
 
-  const totalRes = userReservations.length;
-  const pendingRes = userReservations.filter(r => r.status === 'Pending').length;
-  const approvedRes = userReservations.filter(r => r.status === 'Approved').length;
-  const upcomingRes = userReservations.filter(r => r.status === 'Approved' && new Date(r.date) >= new Date()).length;
+        if (dashRes.success && dashRes.data) {
+          setDashboardData(dashRes.data);
+        } else {
+          setError(dashRes.message || 'Failed to retrieve dashboard analytics.');
+        }
+      } catch (err) {
+        console.error('Failed to load user dashboard data:', err.message);
+        setError(err.message || 'Error connecting to server.');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const nextUpcoming = userReservations
-    .filter(r => r.status === 'Approved' && new Date(r.date) >= new Date())
-    .sort((a, b) => new Date(a.date) - new Date(b.date))[0];
+    fetchDashboard();
+  }, []);
 
-  const recentRequests = userReservations.slice(0, 4);
+  // Extract statistics directly from GET /api/dashboard/user response (data.stats)
+  const stats = dashboardData?.stats || {
+    totalReservations: 0,
+    pendingReservations: 0,
+    approvedReservations: 0,
+    cancelledReservations: 0,
+    upcomingReservations: 0
+  };
+
+  // Map next upcoming approved event directly from data.upcomingReservation
+  const nextUpcoming = dashboardData?.upcomingReservation
+    ? mapReservation(dashboardData.upcomingReservation)
+    : null;
+
+  // Map recent reservation requests directly from data.recentReservations
+  const recentRequests = Array.isArray(dashboardData?.recentReservations)
+    ? dashboardData.recentReservations.map(mapReservation)
+    : [];
 
   return (
     <div className="space-y-8">
@@ -40,7 +70,7 @@ const UserDashboardPage = () => {
       <div className="bg-[#4338CA] text-white rounded-2xl p-6 sm:p-8 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div className="space-y-2">
           <span className="bg-indigo-800 text-teal-300 text-xs font-semibold px-3 py-1 rounded-full border border-indigo-600">
-            {currentUser?.userType || 'Campus Member'} • {currentUser?.department}
+            {currentUser?.userType || 'Campus Member'} • {currentUser?.department || 'Department'}
           </span>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
             Welcome back, {currentUser?.name || 'Member'}!
@@ -53,7 +83,7 @@ const UserDashboardPage = () => {
         <div className="flex flex-wrap items-center gap-3 shrink-0">
           <Link
             to="/reserve"
-            className="bg-[#0D9488] text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-teal-700 transition shadow-sm flex items-center gap-2"
+            className="bg-[#0D9488] text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-teal-700 transition shadow-sm flex items-center gap-2 cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
             Reserve Hall Now
@@ -61,32 +91,40 @@ const UserDashboardPage = () => {
         </div>
       </div>
 
-      {/* Metric Cards Grid */}
+      {/* Error Alert State if API request fails */}
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl font-bold flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Metric Cards Grid — mapped strictly from GET /api/dashboard/user (data.stats) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <DashboardCard
           title="Total Reservations"
-          value={totalRes}
+          value={loading ? '...' : stats.totalReservations}
           subtitle="All-time user submissions"
           icon={CalendarCheck}
           color="indigo"
         />
         <DashboardCard
           title="Pending Requests"
-          value={pendingRes}
+          value={loading ? '...' : stats.pendingReservations}
           subtitle="Awaiting admin review"
           icon={Clock}
           color="amber"
         />
         <DashboardCard
           title="Approved Reservations"
-          value={approvedRes}
+          value={loading ? '...' : stats.approvedReservations}
           subtitle="Confirmed bookings"
           icon={CheckCircle2}
           color="teal"
         />
         <DashboardCard
           title="Upcoming Events"
-          value={upcomingRes}
+          value={loading ? '...' : stats.upcomingReservations}
           subtitle="Scheduled on calendar"
           icon={Calendar}
           color="indigo"
@@ -107,7 +145,9 @@ const UserDashboardPage = () => {
               {nextUpcoming && <StatusBadge status={nextUpcoming.status} />}
             </div>
 
-            {nextUpcoming ? (
+            {loading ? (
+              <div className="text-center py-6 text-slate-400 text-xs font-medium">Loading upcoming event...</div>
+            ) : nextUpcoming ? (
               <div className="bg-[#F8FAFC] p-4 rounded-xl border border-indigo-100 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <h3 className="font-extrabold text-[#4338CA] text-base">{nextUpcoming.eventTitle}</h3>
@@ -157,11 +197,13 @@ const UserDashboardPage = () => {
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h2 className="text-base font-bold text-[#4338CA]">Recent Reservation Requests</h2>
               <Link to="/my-reservations" className="text-xs font-bold text-[#0D9488] hover:underline">
-                View All ({userReservations.length})
+                View All ({recentRequests.length})
               </Link>
             </div>
 
-            {recentRequests.length > 0 ? (
+            {loading ? (
+              <div className="text-center py-6 text-slate-400 text-xs font-medium">Loading recent requests...</div>
+            ) : recentRequests.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#F8FAFC] text-[#4338CA] font-bold uppercase tracking-wider border-b border-slate-200">
@@ -177,7 +219,7 @@ const UserDashboardPage = () => {
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {recentRequests.map((res) => (
                       <tr key={res.id} className="hover:bg-slate-50">
-                        <td className="p-3 font-mono text-slate-500">{res.id}</td>
+                        <td className="p-3 font-mono text-slate-500">{String(res.id).slice(-8)}</td>
                         <td className="p-3 font-bold text-slate-800">{res.hallName}</td>
                         <td className="p-3 text-slate-700 max-w-[180px] truncate">{res.eventTitle}</td>
                         <td className="p-3 text-slate-600">
@@ -265,7 +307,7 @@ const UserDashboardPage = () => {
                 <div key={h.id} className="flex items-center justify-between text-xs">
                   <div>
                     <div className="font-bold text-slate-800">{h.name}</div>
-                    <div className="text-[10px] text-slate-500">{h.type} • Cap: {h.capacity}</div>
+                    <div className="text-[10px] text-slate-500">{h.hallType || h.type} • Cap: {h.capacity}</div>
                   </div>
                   <Link to={`/halls/${h.id}`} className="text-[#0D9488] font-bold hover:underline">
                     Details

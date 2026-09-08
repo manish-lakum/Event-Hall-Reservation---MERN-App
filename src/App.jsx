@@ -7,12 +7,23 @@ import PublicLayout from './layouts/PublicLayout';
 import UserLayout from './layouts/UserLayout';
 import AdminLayout from './layouts/AdminLayout';
 
+import { useApp } from './context/AppContext';
+
 // Auth Pages
 import LandingPage from './pages/auth/LandingPage';
 import LoginPage from './pages/auth/LoginPage';
+import AdminLoginPage from './pages/auth/AdminLoginPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import OtpVerificationPage from './pages/auth/OtpVerificationPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
+
+function AdminRootRoute() {
+  const { currentUser, currentRole } = useApp();
+  if (currentUser && currentRole === 'Admin') {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+  return <AdminLoginPage />;
+}
 
 // User Pages
 import UserDashboardPage from './pages/user/UserDashboardPage';
@@ -52,6 +63,10 @@ function App() {
             <Route path="/verify-otp" element={<OtpVerificationPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
           </Route>
+
+          {/* Admin Direct URL Auth Entry Points */}
+          <Route path="/admin" element={<AdminRootRoute />} />
+          <Route path="/admin/login" element={<AdminRootRoute />} />
 
           {/* User Portal Routes */}
           <Route element={<UserLayout />}>

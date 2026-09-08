@@ -1,46 +1,43 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
-import { Building2, Eye, EyeOff, Lock, Mail, ShieldCheck, User } from 'lucide-react';
+import { Building2, Eye, EyeOff, Lock, Mail } from 'lucide-react';
 
 const LoginPage = () => {
   const { login } = useApp();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('rahul.verma@student.college.edu');
-  const [password, setPassword] = useState('password123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email || !password) {
       setError('Please enter both email address and password.');
       return;
     }
 
-    const res = login(email, password);
-    if (res.success) {
-      if (res.role === 'Admin') {
-        navigate('/admin/dashboard');
+    try {
+      setLoading(true);
+      setError('');
+      const res = await login(email, password);
+      if (res.success) {
+        if (res.role === 'Admin') {
+          navigate('/admin/dashboard');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
-        navigate('/dashboard');
+        setError(res.message || 'Login failed. Please check credentials.');
       }
-    }
-  };
-
-  const handleQuickLogin = (roleType) => {
-    if (roleType === 'Admin') {
-      setEmail('admin@college.edu');
-      setPassword('admin123');
-      login('admin@college.edu', 'admin123');
-      navigate('/admin/dashboard');
-    } else {
-      setEmail('rahul.verma@student.college.edu');
-      setPassword('password123');
-      login('rahul.verma@student.college.edu', 'password123');
-      navigate('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Server error. Please try again later.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -52,39 +49,14 @@ const LoginPage = () => {
           <div className="inline-flex p-3 bg-[#0D9488] rounded-xl mb-1 shadow-md">
             <Building2 className="w-7 h-7 text-white" />
           </div>
-          <h2 className="text-xl font-extrabold tracking-tight">Campus Portal Sign In</h2>
+          <h2 className="text-xl font-extrabold tracking-tight">User Portal Sign In</h2>
           <p className="text-xs text-indigo-200">
-            Event Hall Reservation System • Authorized Members Only
+            Event Hall Reservation System • Students & Faculty Portal
           </p>
         </div>
 
         {/* Form Container */}
         <div className="p-8 space-y-6">
-          {/* Quick Demo Login Preset Buttons */}
-          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider text-center">
-              ⚡ 1-Click Demo Login
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('User')}
-                className="py-2 px-3 text-xs font-bold bg-white border border-slate-300 text-[#4338CA] hover:border-[#4338CA] rounded-lg transition shadow-2xs flex items-center justify-center gap-1.5"
-              >
-                <User className="w-3.5 h-3.5 text-[#0D9488]" />
-                User Demo
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('Admin')}
-                className="py-2 px-3 text-xs font-bold bg-indigo-900 text-teal-300 hover:bg-indigo-950 rounded-lg transition shadow-2xs flex items-center justify-center gap-1.5"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
-                Admin Demo
-              </button>
-            </div>
-          </div>
-
           {error && (
             <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg font-medium">
               {error}
@@ -102,7 +74,7 @@ const LoginPage = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="student@college.edu or faculty@college.edu"
+                  placeholder="rahul.verma@student.svgu.edu.in"
                   required
                   className="w-full pl-9 pr-4 py-2.5 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] focus:border-transparent outline-hidden font-medium text-slate-800"
                 />
@@ -151,9 +123,10 @@ const LoginPage = () => {
 
             <button
               type="submit"
-              className="w-full bg-[#0D9488] text-white py-3 rounded-xl font-bold text-sm hover:bg-teal-700 transition shadow-md"
+              disabled={loading}
+              className="w-full bg-[#0D9488] text-white py-3 rounded-xl font-bold text-sm hover:bg-teal-700 transition shadow-md disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              Sign In to Portal
+              {loading ? 'Authenticating...' : 'Sign In to Portal'}
             </button>
           </form>
         </div>

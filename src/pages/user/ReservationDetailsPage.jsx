@@ -1,17 +1,10 @@
-import React from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import { reservationService } from '../../services/reservationService';
 import StatusBadge from '../../components/common/StatusBadge';
 import {
   ArrowLeft,
-  Building2,
-  Calendar,
-  Clock,
-  Users,
-  CheckCircle2,
-  AlertCircle,
-  FileText,
-  User,
   ShieldCheck,
   Ban
 } from 'lucide-react';
@@ -19,23 +12,62 @@ import {
 const ReservationDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { reservations, halls, cancelReservation } = useApp();
+  const { reservations, mapReservation } = useApp();
 
-  const reservation = reservations.find(r => r.id === id) || reservations[0];
-  const hall = halls.find(h => h.id === reservation?.hallId);
+  const [reservationData, setReservationData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadDetail = async () => {
+      try {
+        setLoading(true);
+        const res = await reservationService.getReservationById(id);
+        if (res.success && res.data) {
+          setReservationData(mapReservation(res.data));
+        } else {
+          const found = reservations.find(r => r.id === id);
+          if (found) setReservationData(found);
+        }
+      } catch (err) {
+        const found = reservations.find(r => r.id === id);
+        if (found) setReservationData(found);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) loadDetail();
+  }, [id, reservations, mapReservation]);
+
+  const reservation = reservationData || reservations.find(r => r.id === id) || reservations[0];
+
+  if (loading && !reservation) {
+    return <div className="text-center py-12 text-slate-500 text-xs font-semibold">Loading reservation pass...</div>;
+  }
+
+  if (!reservation) {
+    return (
+      <div className="text-center py-12 space-y-4">
+        <h2 className="text-xl font-bold text-[#4338CA]">Reservation Not Found</h2>
+        <button onClick={() => navigate('/my-reservations')} className="bg-[#0D9488] text-white px-4 py-2 rounded-lg text-xs font-bold">
+          Back to My Reservations
+        </button>
+      </div>
+    );
+  }
 
   // Status Progress Steps calculation
   const getProgressState = () => {
     switch (reservation?.status) {
       case 'Pending':
-        return 2; // Step 2: Under Admin Review
+        return 2;
       case 'Approved':
-        return 3; // Step 3: Approved
+        return 3;
       case 'Completed':
-        return 4; // Step 4: Completed
+        return 4;
       case 'Rejected':
       case 'Cancelled':
-        return -1; // Failed or Cancelled terminal state
+        return -1;
       default:
         return 1;
     }
@@ -49,14 +81,14 @@ const ReservationDetailsPage = () => {
       <div className="flex items-center justify-between">
         <button
           onClick={() => navigate('/my-reservations')}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#4338CA] hover:underline bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#4338CA] hover:underline bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Back to My Reservations
         </button>
 
         <div className="text-xs font-mono text-slate-500 font-bold">
-          ID: {reservation?.id}
+          ID: {String(reservation?.id).slice(-8)}
         </div>
       </div>
 
@@ -89,7 +121,7 @@ const ReservationDetailsPage = () => {
                 <h4 className="font-bold text-rose-900">
                   Request {reservation?.status}
                 </h4>
-                <p className="mt-0.5">{reservation?.adminRemarks || 'This reservation request is no longer active.'}</p>
+                <p className="mt-0.5">{reservation?.adminRemarks || reservation?.rejectionReason || reservation?.cancellationReason || 'This reservation request is no longer active.'}</p>
               </div>
             </div>
           ) : (
@@ -110,15 +142,15 @@ const ReservationDetailsPage = () => {
           )}
         </div>
 
-        {/* SECTION: Admin Remarks (If Rejected or Approved with remarks) */}
-        {reservation?.adminRemarks && (
+        {/* SECTION: Admin Remarks */}
+        {(reservation?.adminRemarks || reservation?.rejectionReason) && (
           <div className="px-6 sm:px-8">
             <div className={`p-4 rounded-xl border ${reservation.status === 'Rejected' ? 'bg-rose-50 border-rose-200 text-rose-900' : 'bg-indigo-50 border-indigo-200 text-indigo-900'} space-y-1`}>
               <div className="font-bold text-xs flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-[#0D9488]" />
                 Admin Remarks / Response:
               </div>
-              <p className="text-xs leading-relaxed pl-5 font-medium">{reservation.adminRemarks}</p>
+              <p className="text-xs leading-relaxed pl-5 font-medium">{reservation.adminRemarks || reservation.rejectionReason}</p>
             </div>
           </div>
         )}
@@ -146,7 +178,6 @@ const ReservationDetailsPage = () => {
             <div><strong>Organizer Name:</strong> {reservation?.userName}</div>
             <div><strong>User Role:</strong> {reservation?.userType}</div>
             <div><strong>Department / Unit:</strong> {reservation?.department}</div>
-            <div><strong>ID Number:</strong> {reservation?.employeeId}</div>
             <div><strong>Contact Email:</strong> {reservation?.userEmail}</div>
 
             <div className="pt-2">

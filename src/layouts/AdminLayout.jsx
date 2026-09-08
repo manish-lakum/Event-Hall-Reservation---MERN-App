@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Navigate } from 'react-router-dom';
+import { useApp } from '../context/AppContext';
 import AdminSidebar from '../components/admin/AdminSidebar';
 import AdminHeader from '../components/admin/AdminHeader';
 
 const AdminLayout = ({ title }) => {
+  const { currentUser, currentRole } = useApp();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  if (!currentUser || currentRole !== 'Admin') {
+    return <Navigate to="/admin" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex">

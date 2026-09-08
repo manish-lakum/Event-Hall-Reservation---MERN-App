@@ -1,48 +1,88 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import { reservationService } from '../../services/reservationService';
 import StatusBadge from '../../components/common/StatusBadge';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import Modal from '../../components/common/Modal';
 import EmptyState from '../../components/common/EmptyState';
-import { CalendarCheck, Search, Filter, Check, X, Eye, ShieldCheck } from 'lucide-react';
+import { Search, Check, X, Eye } from 'lucide-react';
 
 const AdminReservationsPage = () => {
-  const { reservations, halls, approveReservation, rejectReservation } = useApp();
+  const { halls, approveReservation, rejectReservation, mapReservation } = useApp();
+
+  const [adminReservations, setAdminReservations] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedHall, setSelectedHall] = useState('All');
   const [selectedUserType, setSelectedUserType] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
-  const [selectedDate, setSelectedDate] = useState('');
 
   const [rejectModalTarget, setRejectModalTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [approveConfirmId, setApproveConfirmId] = useState(null);
 
-  const filteredReservations = reservations.filter((r) => {
-    const matchesSearch =
-      r.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.eventTitle.toLowerCase().includes(searchQuery.toLowerCase());
+  const fetchAdminRes = async () => {
+    try {
+      setLoading(true);
+      const res = await reservationService.getAdminReservations();
+      if (res.success && Array.isArray(res.data)) {
+        setAdminReservations(res.data.map(mapReservation));
+      }
+    } catch (err) {
+      console.error('Failed to fetch admin reservations:', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const matchesHall = selectedHall === 'All' || r.hallId === selectedHall;
-    const matchesUserType = selectedUserType === 'All' || r.userType.toLowerCase() === selectedUserType.toLowerCase();
-    const matchesStatus = selectedStatus === 'All' || r.status.toLowerCase() === selectedStatus.toLowerCase();
-    const matchesDate = !selectedDate || r.date === selectedDate;
+  useEffect(() => {
+    fetchAdminRes();
+  }, []);
 
-    return matchesSearch && matchesHall && matchesUserType && matchesStatus && matchesDate;
-  });
+  const handleConfirmApprove = async () => {
+    if (!approveConfirmId) return;
+    try {
+      const res = await approveReservation(approveConfirmId);
+      if (res.success) {
+        setApproveConfirmId(null);
+        await fetchAdminRes();
+      }
+    } catch (err) {
+      console.error('Approve failed:', err.message);
+    }
+  };
 
-  const handleConfirmReject = () => {
+  const handleConfirmReject = async () => {
     if (!rejectReason.trim()) {
       alert('Please state a reason for rejection.');
       return;
     }
-    rejectReservation(rejectModalTarget.id, rejectReason);
-    setRejectModalTarget(null);
-    setRejectReason('');
+    try {
+      const res = await rejectReservation(rejectModalTarget.id, rejectReason);
+      if (res.success) {
+        setRejectModalTarget(null);
+        setRejectReason('');
+        await fetchAdminRes();
+      }
+    } catch (err) {
+      console.error('Reject failed:', err.message);
+    }
   };
+
+  const filteredReservations = adminReservations.filter((r) => {
+    const matchesSearch =
+      String(r.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(r.userName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(r.eventTitle || '').toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesHall = selectedHall === 'All' || r.hallId === selectedHall || r.hall?._id === selectedHall;
+    const matchesUserType = selectedUserType === 'All' || (r.userType || '').toLowerCase() === selectedUserType.toLowerCase();
+    const matchesStatus = selectedStatus === 'All' || (r.status || '').toLowerCase() === selectedStatus.toLowerCase();
+
+    return matchesSearch && matchesHall && matchesUserType && matchesStatus;
+  });
 
   return (
     <div className="space-y-8">
@@ -57,7 +97,7 @@ const AdminReservationsPage = () => {
         </div>
 
         <div className="text-xs font-semibold text-slate-500 bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs w-fit">
-          Showing <strong className="text-[#4338CA]">{filteredReservations.length}</strong> of {reservations.length} total
+          Showing <strong className="text-[#4338CA]">{filteredReservations.length}</strong> of {adminReservations.length} total
         </div>
       </div>
 
@@ -85,7 +125,7 @@ const AdminReservationsPage = () => {
             >
               <option value="All">All Campus Halls</option>
               {halls.map(h => (
-                <option key={h.id} value={h.id}>{h.name}</option>
+                <option key={h.id} value={h.id}>{h.name || h.hallName}</option>
               ))}
             </select>
           </div>
@@ -98,11 +138,11 @@ const AdminReservationsPage = () => {
               className="w-full px-3 py-2 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] outline-hidden font-semibold text-slate-700 bg-white"
             >
               <option value="All">All User Types</option>
-              <option value="Faculty">Faculty</option>
-              <option value="Student">Student</option>
-              <option value="Staff">Staff</option>
-              <option value="Department">Department</option>
-              <option value="College Club/Committee">Club/Committee</option>
+              <option value="FACULTY">Faculty</option>
+              <option value="STUDENT">Student</option>
+              <option value="STAFF">Staff</option>
+              <option value="DEPARTMENT">Department</option>
+              <option value="CLUB">Club/Committee</option>
             </select>
           </div>
 
@@ -126,7 +166,9 @@ const AdminReservationsPage = () => {
 
       {/* Table Box */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-        {filteredReservations.length > 0 ? (
+        {loading ? (
+          <div className="text-center py-12 text-slate-500 text-xs font-semibold">Loading reservations from database...</div>
+        ) : filteredReservations.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-[#F8FAFC] text-[#4338CA] font-bold uppercase tracking-wider border-b border-slate-200">
@@ -146,7 +188,7 @@ const AdminReservationsPage = () => {
                   const isPending = res.status === 'Pending';
                   return (
                     <tr key={res.id} className="hover:bg-slate-50 transition">
-                      <td className="p-3.5 font-mono font-bold text-[#4338CA]">{res.id}</td>
+                      <td className="p-3.5 font-mono font-bold text-[#4338CA]">{String(res.id).slice(-8)}</td>
                       <td className="p-3.5">
                         <div className="font-bold text-slate-900">{res.userName}</div>
                         <div className="text-[10px] text-slate-500">{res.userType} • {res.department}</div>
@@ -167,14 +209,14 @@ const AdminReservationsPage = () => {
                             <>
                               <button
                                 onClick={() => setApproveConfirmId(res.id)}
-                                className="p-1.5 bg-[#0D9488] text-white hover:bg-teal-700 rounded-md transition"
+                                className="p-1.5 bg-[#0D9488] text-white hover:bg-teal-700 rounded-md transition cursor-pointer"
                                 title="Approve Request"
                               >
                                 <Check className="w-3.5 h-3.5" />
                               </button>
                               <button
                                 onClick={() => setRejectModalTarget(res)}
-                                className="p-1.5 bg-rose-600 text-white hover:bg-rose-700 rounded-md transition"
+                                className="p-1.5 bg-rose-600 text-white hover:bg-rose-700 rounded-md transition cursor-pointer"
                                 title="Reject Request"
                               >
                                 <X className="w-3.5 h-3.5" />
@@ -208,14 +250,9 @@ const AdminReservationsPage = () => {
       <ConfirmDialog
         isOpen={Boolean(approveConfirmId)}
         onClose={() => setApproveConfirmId(null)}
-        onConfirm={() => {
-          if (approveConfirmId) {
-            approveReservation(approveConfirmId);
-            setApproveConfirmId(null);
-          }
-        }}
+        onConfirm={handleConfirmApprove}
         title="Confirm Request Approval"
-        message={`Are you sure you want to approve reservation request ${approveConfirmId}?`}
+        message={`Are you sure you want to approve reservation request?`}
         confirmText="Approve Request"
       />
 
@@ -229,13 +266,13 @@ const AdminReservationsPage = () => {
           <>
             <button
               onClick={() => setRejectModalTarget(null)}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-lg"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-300 rounded-lg cursor-pointer"
             >
               Cancel
             </button>
             <button
               onClick={handleConfirmReject}
-              className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs"
+              className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs cursor-pointer"
             >
               Confirm Rejection
             </button>
@@ -244,7 +281,7 @@ const AdminReservationsPage = () => {
       >
         <div className="space-y-4">
           <p className="text-xs text-slate-600">
-            State the official reason for declining request <strong>{rejectModalTarget?.id}</strong>:
+            State the official reason for declining request <strong>{rejectModalTarget?.eventTitle}</strong>:
           </p>
           <textarea
             rows={3}

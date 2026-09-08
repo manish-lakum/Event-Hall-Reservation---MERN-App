@@ -1,375 +1,542 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import {
-  initialHalls,
-  initialReservations,
-  initialBlockedSlots,
-  initialUsers,
-  initialNotifications,
-  initialSettings
-} from '../data/mockData';
-import { checkSlotOverlap, checkBlockedOverlap } from '../services/apiServices';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { authService } from '../services/authService';
+import { hallService } from '../services/hallService';
+import { reservationService } from '../services/reservationService';
+import { blockService } from '../services/blockService';
+import { notificationService } from '../services/notificationService';
+import { adminUserService } from '../services/adminUserService';
+import { profileService } from '../services/profileService';
+import { formatDateTimeIST } from '../utils/dateTime';
 
 const AppContext = createContext();
 
 export const AppProvider = ({ children }) => {
+  const [token, setToken] = useState(() => localStorage.getItem('aitm_token') || null);
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('aitm_user');
-    return saved ? JSON.parse(saved) : initialUsers[1]; // Default to Student Rahul Verma
+    return saved ? JSON.parse(saved) : null;
   });
 
   const [currentRole, setCurrentRole] = useState(() => {
     return localStorage.getItem('aitm_role') || 'User';
   });
 
-  const [halls, setHalls] = useState(() => {
-    const saved = localStorage.getItem('aitm_halls');
-    return saved ? JSON.parse(saved) : initialHalls;
-  });
+  const [halls, setHalls] = useState([]);
+  const [reservations, setReservations] = useState([]);
+  const [blockedSlots, setBlockedSlots] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  const [reservations, setReservations] = useState(() => {
-    const saved = localStorage.getItem('aitm_reservations');
-    return saved ? JSON.parse(saved) : initialReservations;
-  });
-
-  const [blockedSlots, setBlockedSlots] = useState(() => {
-    const saved = localStorage.getItem('aitm_blocked');
-    return saved ? JSON.parse(saved) : initialBlockedSlots;
-  });
-
-  const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('aitm_users');
-    return saved ? JSON.parse(saved) : initialUsers;
-  });
-
-  const [notifications, setNotifications] = useState(() => {
-    const saved = localStorage.getItem('aitm_notifications');
-    return saved ? JSON.parse(saved) : initialNotifications;
-  });
-
-  const [settings, setSettings] = useState(() => {
-    const saved = localStorage.getItem('aitm_settings');
-    return saved ? JSON.parse(saved) : initialSettings;
-  });
-
-  // Sync state to LocalStorage for persistence across tab reloads
-  useEffect(() => {
-    localStorage.setItem('aitm_user', JSON.stringify(currentUser));
-  }, [currentUser]);
-
-  useEffect(() => {
-    localStorage.setItem('aitm_role', currentRole);
-  }, [currentRole]);
-
-  useEffect(() => {
-    localStorage.setItem('aitm_halls', JSON.stringify(halls));
-  }, [halls]);
-
-  useEffect(() => {
-    localStorage.setItem('aitm_reservations', JSON.stringify(reservations));
-  }, [reservations]);
-
-  useEffect(() => {
-    localStorage.setItem('aitm_blocked', JSON.stringify(blockedSlots));
-  }, [blockedSlots]);
-
-  useEffect(() => {
-    localStorage.setItem('aitm_users', JSON.stringify(users));
-  }, [users]);
-
-  useEffect(() => {
-    localStorage.setItem('aitm_notifications', JSON.stringify(notifications));
-  }, [notifications]);
-
-  useEffect(() => {
-    localStorage.setItem('aitm_settings', JSON.stringify(settings));
-  }, [settings]);
-
-  // Auth Operations
-  const login = (email, password) => {
-    const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (foundUser) {
-      setCurrentUser(foundUser);
-      const role = foundUser.userType === 'Admin' ? 'Admin' : 'User';
-      setCurrentRole(role);
-      return { success: true, role, user: foundUser };
+  const [settings, setSettings] = useState({
+    siteName: 'SVGU Campus Hall Portal',
+    collegeName: 'Sardar Vallabhbhai Global University (SVGU)',
+    shortName: 'SVGU',
+    contactEmail: 'admin@svgu.edu.in',
+    contactPhone: '+91 79 2328 7000',
+    allowWeekendBookings: true,
+    maxAdvanceBookingDays: 30,
+    autoApprovalEnabled: false,
+    reservationRules: {
+      minBookingDurationHours: 1,
+      maxBookingDurationHours: 8,
+      advanceBookingLimitDays: 30,
+      allowWeekendBooking: true,
+      autoApproveFaculty: false
     }
-    // Mock login fallback if user email is new
-    const isMockAdmin = email.includes('admin');
-    const role = isMockAdmin ? 'Admin' : 'User';
-    const mockUser = {
-      id: isMockAdmin ? 'admin-1' : 'user-2',
-      name: email.split('@')[0].replace('.', ' '),
-      email,
-      userType: role === 'Admin' ? 'Admin' : 'Faculty',
-      department: 'Computer Science',
-      employeeId: role === 'Admin' ? 'ADMIN-01' : 'EMP-CS-100',
-      phone: '+91 98000 00000',
-      status: 'Active',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=250&q=80'
+  });
+
+  // Mapper utilities to ensure frontend component field compatibility
+  const mapHall = useCallback((h) => ({
+    ...h,
+    id: h._id || h.id,
+    name: h.hallName || h.name,
+    status: h.isActive ? 'Active' : 'Inactive'
+  }), []);
+
+  const mapReservation = useCallback((r) => ({
+    ...r,
+    id: r._id || r.id,
+    date: r.eventDate || r.date,
+    hallId: r.hall?._id || r.hall || r.hallId,
+    hallName: r.hall?.hallName || r.hallName || 'Hall',
+    userName: r.user?.name || r.userName || 'User',
+    userEmail: r.user?.email || r.userEmail || '',
+    userType: r.user?.userType || r.userType || 'STUDENT',
+    department: r.user?.department || r.department || '',
+    createdAt: r.createdAt,
+    approvedAt: r.approvedAt,
+    rejectedAt: r.rejectedAt,
+    cancelledAt: r.cancelledAt,
+    requestedOn: formatDateTimeIST(r.createdAt || r.requestedOn),
+    approvedOn: formatDateTimeIST(r.approvedAt),
+    rejectedOn: formatDateTimeIST(r.rejectedAt),
+    cancelledOn: formatDateTimeIST(r.cancelledAt),
+    status: (r.status || 'PENDING').charAt(0).toUpperCase() + (r.status || 'PENDING').slice(1).toLowerCase()
+  }), []);
+
+  const mapBlock = useCallback((b) => ({
+    ...b,
+    id: b._id || b.id,
+    hallId: b.hall?._id || b.hall || b.hallId,
+    hallName: b.hall?.hallName || b.hallName || 'Hall',
+    status: b.isActive ? 'Active' : 'Disabled'
+  }), []);
+
+  const mapUser = useCallback((u) => {
+    if (!u) return null;
+    const userData = u.user || u;
+    return {
+      ...userData,
+      id: userData._id || userData.id,
+      name: userData.name || '',
+      email: userData.email || '',
+      department: userData.department || '',
+      phone: userData.phone || '',
+      collegeId: userData.collegeId || '',
+      userType: userData.userType || 'STUDENT',
+      role: userData.role || 'USER',
+      status: userData.isActive !== false ? 'Active' : 'Inactive',
+      createdAtFormatted: formatDateTimeIST(userData.createdAt)
     };
-    setCurrentUser(mockUser);
-    setCurrentRole(role);
-    return { success: true, role, user: mockUser };
+  }, []);
+
+  const mapNotification = useCallback((n) => ({
+    ...n,
+    id: n._id || n.id,
+    title: n.title,
+    message: n.message,
+    timestamp: formatDateTimeIST(n.createdAt || n.timestamp),
+    isRead: n.isRead,
+    type: (n.type || 'info').toLowerCase()
+  }), []);
+
+  // Fetch initial data
+  const loadInitialData = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      // Verify token & restore session
+      if (token) {
+        try {
+          const userRes = await authService.getMe();
+          const userData = userRes.data?.user || userRes.data;
+          if (userRes.success && userData) {
+            const mappedUser = mapUser(userData);
+            setCurrentUser(mappedUser);
+            localStorage.setItem('aitm_user', JSON.stringify(mappedUser));
+            const role = mappedUser.role === 'ADMIN' ? 'Admin' : 'User';
+            setCurrentRole(role);
+          }
+        } catch {
+          authService.logout();
+          setToken(null);
+          setCurrentUser(null);
+        }
+      }
+
+      // Fetch public halls
+      try {
+        const hallRes = await hallService.getHalls();
+        if (hallRes.success && Array.isArray(hallRes.data)) {
+          setHalls(hallRes.data.map(mapHall));
+        }
+      } catch (err) {
+        console.error('Failed to load halls:', err.message);
+      }
+
+      // Fetch unread notifications count if logged in
+      if (token) {
+        try {
+          const notifRes = await notificationService.getNotifications();
+          if (notifRes.success && Array.isArray(notifRes.data)) {
+            setNotifications(notifRes.data.map(mapNotification));
+          }
+          const unreadRes = await notificationService.getUnreadCount();
+          if (unreadRes.success && typeof unreadRes.data?.unreadCount === 'number') {
+            setUnreadCount(unreadRes.data.unreadCount);
+          }
+        } catch (err) {
+          console.error('Failed to load notifications:', err.message);
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  // Auth operations
+  const login = async (email, password) => {
+    try {
+      const res = await authService.login(email, password);
+      if (res.success && res.data) {
+        setToken(res.data.token);
+        const mappedUser = mapUser(res.data.user);
+        setCurrentUser(mappedUser);
+        const role = res.data.user.role === 'ADMIN' ? 'Admin' : 'User';
+        setCurrentRole(role);
+
+        // Reload user session data
+        await loadInitialData();
+        return { success: true, role, user: mappedUser };
+      }
+      return { success: false, message: res.message || 'Login failed' };
+    } catch (err) {
+      return { success: false, message: err.message || 'Invalid credentials or server unavailable' };
+    }
   };
 
   const logout = () => {
+    authService.logout();
+    setToken(null);
     setCurrentUser(null);
     setCurrentRole('User');
-    localStorage.removeItem('aitm_user');
+    setReservations([]);
+    setNotifications([]);
+    setUnreadCount(0);
   };
 
   const switchRole = (role) => {
     setCurrentRole(role);
-    if (role === 'Admin') {
-      const adminUser = users.find(u => u.userType === 'Admin') || initialUsers[5];
-      setCurrentUser(adminUser);
-    } else {
-      const regularUser = users.find(u => u.userType !== 'Admin') || initialUsers[1];
-      setCurrentUser(regularUser);
-    }
+    localStorage.setItem('aitm_role', role);
   };
 
-  // Availability Checker
-  const checkAvailability = (hallId, date, startTime, endTime) => {
-    const hall = halls.find(h => h.id === hallId);
-    if (!hall) return { available: false, message: 'Hall not found.' };
-    if (hall.status !== 'Active') return { available: false, message: 'Hall is currently disabled by Admin.' };
-
-    // Check operating hours
-    if (startTime < hall.openingTime || endTime > hall.closingTime) {
-      return {
-        available: false,
-        message: `Requested slot outside hall operating hours (${hall.openingTime} - ${hall.closingTime}).`
-      };
+  // Availability Checker using live Backend API
+  const checkAvailability = async (hallId, date, startTime, endTime) => {
+    try {
+      const res = await hallService.checkAvailability(hallId, date, startTime, endTime);
+      if (res.success && res.data) {
+        return {
+          available: res.data.isAvailable,
+          message: res.data.isAvailable
+            ? 'Hall is available for reservation!'
+            : res.data.reason || 'Requested time slot is unavailable.'
+        };
+      }
+      return { available: false, message: 'Could not verify availability.' };
+    } catch (err) {
+      return { available: false, message: err.message || 'Availability check failed.' };
     }
-
-    // Check maintenance / blocked slots
-    const isBlocked = checkBlockedOverlap(blockedSlots, hallId, date, startTime, endTime);
-    if (isBlocked) {
-      const blockReason = blockedSlots.find(b => b.hallId === hallId && b.startDate <= date && b.endDate >= date);
-      return {
-        available: false,
-        message: `Hall is unavailable due to maintenance/blocked status: ${blockReason?.reason || 'Administrative Block'}.`
-      };
-    }
-
-    // Check existing reservations
-    const hallReservations = reservations.filter(r => r.hallId === hallId);
-    const hasOverlap = checkSlotOverlap(hallReservations, date, startTime, endTime);
-
-    if (hasOverlap) {
-      return {
-        available: false,
-        message: 'This hall already has an approved or pending reservation during the selected time slot.'
-      };
-    }
-
-    return { available: true, message: 'Hall is available for reservation!' };
   };
 
   // Reservation Actions
-  const addReservation = (formData) => {
-    const availability = checkAvailability(formData.hallId, formData.date, formData.startTime, formData.endTime);
-    if (!availability.available) {
-      return { success: false, message: availability.message };
-    }
-
-    const hall = halls.find(h => h.id === formData.hallId);
-    if (Number(formData.expectedParticipants) > hall.capacity) {
-      return {
-        success: false,
-        message: `Expected participants (${formData.expectedParticipants}) exceeds hall capacity (${hall.capacity}).`
+  const addReservation = async (formData) => {
+    try {
+      const payload = {
+        hallId: formData.hallId,
+        eventTitle: formData.eventTitle,
+        eventType: (formData.eventType || 'SEMINAR').toUpperCase(),
+        eventDescription: formData.eventDescription || '',
+        eventDate: formData.date || formData.eventDate,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        expectedParticipants: Number(formData.expectedParticipants),
+        requestedFacilities: formData.requestedFacilities || [],
+        additionalNotes: formData.additionalNotes || ''
       };
-    }
 
-    const newRes = {
-      id: `RES-2026-${String(reservations.length + 1).padStart(3, '0')}`,
-      userId: currentUser?.id || 'user-guest',
-      userName: formData.userName || currentUser?.name || 'Authorized Member',
-      userEmail: formData.userEmail || currentUser?.email || 'user@college.edu',
-      userType: formData.userType || currentUser?.userType || 'Student',
-      department: formData.department || currentUser?.department || 'General',
-      employeeId: formData.employeeId || currentUser?.employeeId || 'ID-000',
-      hallId: formData.hallId,
-      hallName: hall.name,
-      eventTitle: formData.eventTitle,
-      eventType: formData.eventType,
-      eventDescription: formData.eventDescription,
-      date: formData.date,
-      startTime: formData.startTime,
-      endTime: formData.endTime,
-      expectedParticipants: Number(formData.expectedParticipants),
-      requestedFacilities: formData.requestedFacilities || [],
-      additionalNotes: formData.additionalNotes || '',
-      status: 'Pending',
-      requestedOn: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      adminRemarks: ''
-    };
+      const res = await reservationService.createReservation(payload);
+      if (res.success && res.data) {
+        const newRes = mapReservation(res.data);
+        setReservations(prev => [newRes, ...prev]);
 
-    setReservations(prev => [newRes, ...prev]);
-
-    // Push notification to Admin
-    const adminNotif = {
-      id: `notif-${Date.now()}`,
-      recipientId: 'admin-1',
-      recipientType: 'Admin',
-      title: 'New Reservation Request',
-      message: `${newRes.userName} requested ${newRes.hallName} for "${newRes.eventTitle}" on ${newRes.date}.`,
-      type: 'info',
-      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      isRead: false,
-      reservationId: newRes.id
-    };
-    setNotifications(prev => [adminNotif, ...prev]);
-
-    return { success: true, reservation: newRes };
-  };
-
-  const cancelReservation = (reservationId) => {
-    setReservations(prev =>
-      prev.map(r => (r.id === reservationId ? { ...r, status: 'Cancelled' } : r))
-    );
-    const targetRes = reservations.find(r => r.id === reservationId);
-    if (targetRes) {
-      const adminNotif = {
-        id: `notif-${Date.now()}`,
-        recipientId: 'admin-1',
-        recipientType: 'Admin',
-        title: 'Reservation Cancelled',
-        message: `Reservation ${reservationId} for ${targetRes.hallName} was cancelled by the user.`,
-        type: 'warning',
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        isRead: false,
-        reservationId
-      };
-      setNotifications(prev => [adminNotif, ...prev]);
-    }
-  };
-
-  const approveReservation = (reservationId, adminRemarks = 'Approved by Admin.') => {
-    let approvedRes = null;
-    setReservations(prev =>
-      prev.map(r => {
-        if (r.id === reservationId) {
-          approvedRes = { ...r, status: 'Approved', adminRemarks };
-          return approvedRes;
+        // Refresh notification unread count
+        try {
+          const unreadRes = await notificationService.getUnreadCount();
+          if (unreadRes.success) setUnreadCount(unreadRes.data.unreadCount);
+        } catch (e) {
+          console.error(e);
         }
-        return r;
-      })
-    );
 
-    if (approvedRes) {
-      const userNotif = {
-        id: `notif-${Date.now()}`,
-        recipientId: approvedRes.userId,
-        recipientType: 'User',
-        title: 'Reservation Approved!',
-        message: `Your request for ${approvedRes.hallName} on ${approvedRes.date} (${approvedRes.startTime}-${approvedRes.endTime}) has been approved.`,
-        type: 'success',
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        isRead: false,
-        reservationId
-      };
-      setNotifications(prev => [userNotif, ...prev]);
+        return { success: true, reservation: newRes, message: 'Reservation request submitted successfully.' };
+      }
+      return { success: false, message: res.message || 'Failed to submit reservation.' };
+    } catch (err) {
+      return { success: false, message: err.message || 'Failed to create reservation.' };
     }
   };
 
-  const rejectReservation = (reservationId, reason) => {
-    let rejectedRes = null;
-    setReservations(prev =>
-      prev.map(r => {
-        if (r.id === reservationId) {
-          rejectedRes = { ...r, status: 'Rejected', adminRemarks: reason };
-          return rejectedRes;
-        }
-        return r;
-      })
-    );
-
-    if (rejectedRes) {
-      const userNotif = {
-        id: `notif-${Date.now()}`,
-        recipientId: rejectedRes.userId,
-        recipientType: 'User',
-        title: 'Reservation Request Declined',
-        message: `Your request for ${rejectedRes.hallName} on ${rejectedRes.date} was rejected: ${reason}`,
-        type: 'error',
-        timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-        isRead: false,
-        reservationId
-      };
-      setNotifications(prev => [userNotif, ...prev]);
+  const cancelReservation = async (reservationId, reason = '') => {
+    try {
+      const res = await reservationService.cancelReservation(reservationId, reason);
+      if (res.success) {
+        setReservations(prev =>
+          prev.map(r => (r.id === reservationId ? { ...r, status: 'Cancelled' } : r))
+        );
+        return { success: true, message: 'Reservation cancelled successfully.' };
+      }
+      return { success: false, message: res.message };
+    } catch (err) {
+      return { success: false, message: err.message };
     }
   };
 
-  // Hall Management
-  const addHall = (hallData) => {
-    const newHall = {
-      id: `hall-${halls.length + 1}`,
-      ...hallData,
-      status: 'Active',
-      capacity: Number(hallData.capacity)
-    };
-    setHalls(prev => [...prev, newHall]);
-    return newHall;
+  const approveReservation = async (reservationId, remarks = 'Approved by Admin.') => {
+    try {
+      const res = await reservationService.approveReservation(reservationId, remarks);
+      if (res.success && res.data) {
+        const updated = mapReservation(res.data);
+        setReservations(prev => prev.map(r => (r.id === reservationId ? updated : r)));
+        return { success: true, reservation: updated };
+      }
+      return { success: false, message: res.message };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
   };
 
-  const updateHall = (hallId, updatedData) => {
-    setHalls(prev =>
-      prev.map(h => (h.id === hallId ? { ...h, ...updatedData, capacity: Number(updatedData.capacity || h.capacity) } : h))
-    );
+  const rejectReservation = async (reservationId, reason) => {
+    try {
+      const res = await reservationService.rejectReservation(reservationId, reason);
+      if (res.success && res.data) {
+        const updated = mapReservation(res.data);
+        setReservations(prev => prev.map(r => (r.id === reservationId ? updated : r)));
+        return { success: true, reservation: updated };
+      }
+      return { success: false, message: res.message };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
   };
 
-  const deleteHall = (hallId) => {
-    setHalls(prev => prev.filter(h => h.id !== hallId));
+  // Hall Management Actions
+  const fetchHalls = useCallback(async (params = {}) => {
+    try {
+      const res = (params.admin || currentRole === 'Admin')
+        ? await hallService.getAdminHalls(params)
+        : await hallService.getHalls(params);
+      if (res.success && Array.isArray(res.data)) {
+        const mapped = res.data.map(mapHall);
+        setHalls(mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.error('Fetch halls error:', err.message);
+    }
+    return [];
+  }, [mapHall, currentRole]);
+
+  const addHall = async (hallData) => {
+    try {
+      const payload = {
+        hallName: hallData.name || hallData.hallName,
+        hallType: (hallData.hallType || 'SEMINAR').toUpperCase(),
+        capacity: Number(hallData.capacity),
+        location: hallData.location,
+        description: hallData.description,
+        openingTime: hallData.openingTime,
+        closingTime: hallData.closingTime,
+        facilities: hallData.facilities || [],
+        image: hallData.image || ''
+      };
+      const res = await hallService.createHall(payload);
+      if (res.success && res.data) {
+        const newHall = mapHall(res.data);
+        setHalls(prev => [...prev, newHall]);
+        return { success: true, hall: newHall };
+      }
+      return { success: false, message: res.message };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
   };
 
-  const toggleHallStatus = (hallId) => {
-    setHalls(prev =>
-      prev.map(h => (h.id === hallId ? { ...h, status: h.status === 'Active' ? 'Disabled' : 'Active' } : h))
-    );
+  const updateHall = async (hallId, updatedData) => {
+    try {
+      const payload = {
+        hallName: updatedData.name || updatedData.hallName,
+        hallType: updatedData.hallType ? updatedData.hallType.toUpperCase() : undefined,
+        capacity: updatedData.capacity ? Number(updatedData.capacity) : undefined,
+        location: updatedData.location,
+        description: updatedData.description,
+        openingTime: updatedData.openingTime,
+        closingTime: updatedData.closingTime,
+        facilities: updatedData.facilities,
+        image: updatedData.image
+      };
+      const res = await hallService.updateHall(hallId, payload);
+      if (res.success && res.data) {
+        const updated = mapHall(res.data);
+        setHalls(prev => prev.map(h => (h.id === hallId ? updated : h)));
+        return { success: true, hall: updated };
+      }
+      return { success: false, message: res.message };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
   };
 
-  // Block Hall
-  const addBlockedSlot = (blockData) => {
-    const hall = halls.find(h => h.id === blockData.hallId);
-    const newBlock = {
-      id: `BLK-${String(blockedSlots.length + 1).padStart(3, '0')}`,
-      ...blockData,
-      hallName: hall ? hall.name : 'College Hall'
-    };
-    setBlockedSlots(prev => [...prev, newBlock]);
+  const deleteHall = async (hallId) => {
+    try {
+      const res = await hallService.deleteHall(hallId);
+      if (res.success) {
+        setHalls(prev => prev.filter(h => h.id !== hallId));
+        return { success: true };
+      }
+      return { success: false, message: res.message };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
   };
 
-  const deleteBlockedSlot = (blockId) => {
-    setBlockedSlots(prev => prev.filter(b => b.id !== blockId));
+  const toggleHallStatus = async (hallId) => {
+    try {
+      const target = halls.find(h => h.id === hallId);
+      const newStatus = target ? target.status !== 'Active' : true;
+      const res = await hallService.toggleHallStatus(hallId, newStatus);
+      if (res.success && res.data) {
+        const updated = mapHall(res.data);
+        setHalls(prev => prev.map(h => (h.id === hallId ? updated : h)));
+        return { success: true, hall: updated };
+      }
+    } catch (err) {
+      console.error('Toggle hall status error:', err.message);
+    }
   };
 
-  // User Management
-  const toggleUserStatus = (userId) => {
-    setUsers(prev =>
-      prev.map(u => (u.id === userId ? { ...u, status: u.status === 'Active' ? 'Inactive' : 'Active' } : u))
-    );
+  // Block Hall Actions
+  const fetchBlockedSlots = async (params = {}) => {
+    try {
+      const res = await blockService.getHallBlocks(params);
+      if (res.success && Array.isArray(res.data)) {
+        const mapped = res.data.map(mapBlock);
+        setBlockedSlots(mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.error('Fetch blocked slots error:', err.message);
+    }
+    return [];
   };
 
-  // Notifications
-  const markNotificationRead = (notifId) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === notifId ? { ...n, isRead: true } : n))
-    );
+  const addBlockedSlot = async (blockData) => {
+    try {
+      const payload = {
+        hall: blockData.hallId,
+        startDate: blockData.startDate,
+        endDate: blockData.endDate,
+        startTime: blockData.startTime || '08:00',
+        endTime: blockData.endTime || '18:00',
+        reason: (blockData.reason || 'MAINTENANCE').toUpperCase(),
+        notes: blockData.notes || blockData.reasonDetails || ''
+      };
+
+      const res = await blockService.createHallBlock(payload);
+      if (res.success && res.data) {
+        const newBlock = mapBlock(res.data);
+        setBlockedSlots(prev => [newBlock, ...prev]);
+        return { success: true, block: newBlock };
+      }
+      return { success: false, message: res.message };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
   };
 
-  const markAllNotificationsRead = (recipientType = 'User') => {
-    setNotifications(prev =>
-      prev.map(n => (n.recipientType === recipientType ? { ...n, isRead: true } : n))
-    );
+  const deleteBlockedSlot = async (blockId) => {
+    try {
+      const res = await blockService.deleteHallBlock(blockId);
+      if (res.success) {
+        setBlockedSlots(prev => prev.filter(b => b.id !== blockId));
+        return { success: true };
+      }
+      return { success: false, message: res.message };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
   };
 
-  const updateUserProfile = (updatedProfile) => {
-    setCurrentUser(prev => ({ ...prev, ...updatedProfile }));
-    setUsers(prev =>
-      prev.map(u => (u.id === currentUser.id ? { ...u, ...updatedProfile } : u))
-    );
+  // User Management Actions
+  const fetchUsers = async (params = {}) => {
+    try {
+      const res = await adminUserService.getAllUsers(params);
+      if (res.success && Array.isArray(res.data)) {
+        const mapped = res.data.map(mapUser);
+        setUsers(mapped);
+        return mapped;
+      }
+    } catch (err) {
+      console.error('Fetch users error:', err.message);
+    }
+    return [];
+  };
+
+  const toggleUserStatus = async (userId) => {
+    try {
+      const target = users.find(u => u.id === userId);
+      const newStatus = target ? target.status !== 'Active' : true;
+      const res = await adminUserService.toggleUserStatus(userId, newStatus);
+      if (res.success && res.data) {
+        const updated = mapUser(res.data);
+        setUsers(prev => prev.map(u => (u.id === userId ? updated : u)));
+        return { success: true, user: updated };
+      }
+    } catch (err) {
+      console.error('Toggle user status error:', err.message);
+    }
+  };
+
+  // Notifications Actions
+  const fetchNotifications = async () => {
+    try {
+      const res = await notificationService.getNotifications();
+      if (res.success && Array.isArray(res.data)) {
+        const mapped = res.data.map(mapNotification);
+        setNotifications(mapped);
+      }
+      const unreadRes = await notificationService.getUnreadCount();
+      if (unreadRes.success) setUnreadCount(unreadRes.data.unreadCount);
+    } catch (err) {
+      console.error('Fetch notifications error:', err.message);
+    }
+  };
+
+  const markNotificationRead = async (notifId) => {
+    try {
+      const res = await notificationService.markAsRead(notifId);
+      if (res.success) {
+        setNotifications(prev =>
+          prev.map(n => (n.id === notifId ? { ...n, isRead: true } : n))
+        );
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (err) {
+      console.error('Mark notification read error:', err.message);
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    try {
+      const res = await notificationService.markAllAsRead();
+      if (res.success) {
+        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+        setUnreadCount(0);
+      }
+    } catch (err) {
+      console.error('Mark all read error:', err.message);
+    }
+  };
+
+  // Profile Update Actions
+  const updateUserProfile = async (updatedProfile) => {
+    try {
+      const res = await profileService.updateProfile(updatedProfile);
+      if (res.success && res.data) {
+        const userData = res.data.user || res.data;
+        const updated = mapUser(userData);
+        setCurrentUser(updated);
+        localStorage.setItem('aitm_user', JSON.stringify(updated));
+        return { success: true, user: updated };
+      }
+      return { success: false, message: res.message };
+    } catch (err) {
+      return { success: false, message: err.message };
+    }
   };
 
   const updateSettings = (newSettings) => {
@@ -379,6 +546,7 @@ export const AppProvider = ({ children }) => {
   return (
     <AppContext.Provider
       value={{
+        token,
         currentUser,
         currentRole,
         halls,
@@ -386,7 +554,9 @@ export const AppProvider = ({ children }) => {
         blockedSlots,
         users,
         notifications,
+        unreadCount,
         settings,
+        loading,
         login,
         logout,
         switchRole,
@@ -395,17 +565,26 @@ export const AppProvider = ({ children }) => {
         cancelReservation,
         approveReservation,
         rejectReservation,
+        fetchHalls,
         addHall,
         updateHall,
         deleteHall,
         toggleHallStatus,
+        fetchBlockedSlots,
         addBlockedSlot,
         deleteBlockedSlot,
+        fetchUsers,
         toggleUserStatus,
+        fetchNotifications,
         markNotificationRead,
         markAllNotificationsRead,
         updateUserProfile,
-        updateSettings
+        updateSettings,
+        mapHall,
+        mapReservation,
+        mapBlock,
+        mapUser,
+        mapNotification
       }}
     >
       {children}

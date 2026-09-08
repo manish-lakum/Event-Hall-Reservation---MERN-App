@@ -1,19 +1,72 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { calendarService } from '../../services/calendarService';
 import CalendarView from '../../components/calendar/CalendarView';
-import { Filter, Calendar as CalendarIcon, Building2 } from 'lucide-react';
+import { Filter } from 'lucide-react';
 
 const AdminCalendarPage = () => {
-  const { reservations, blockedSlots, halls } = useApp();
+  const { halls, mapReservation, mapBlock } = useApp();
   const [selectedHallId, setSelectedHallId] = useState('All');
+  const [adminEvents, setAdminEvents] = useState([]);
+  const [adminBlocks, setAdminBlocks] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchAdminCal = async () => {
+      try {
+        setLoading(true);
+        const params = selectedHallId !== 'All' ? { hallId: selectedHallId } : {};
+        const res = await calendarService.getAdminCalendar(params);
+
+        if (res.success && res.data && isMounted) {
+          const rawItems = Array.isArray(res.data) ? res.data : [];
+          
+          const reservationItems = rawItems
+            .filter(item => item.slotType !== 'BLOCK')
+            .map(r => mapReservation({
+              ...r,
+              _id: r.id || r._id,
+              eventTitle: r.title || r.eventTitle,
+              eventDate: r.date || r.eventDate,
+              hall: r.hall,
+              status: r.status || 'APPROVED'
+            }));
+
+          const blockItems = rawItems
+            .filter(item => item.slotType === 'BLOCK')
+            .map(b => mapBlock({
+              ...b,
+              _id: b.id || b._id,
+              reasonDetails: b.notes,
+              startDate: b.date,
+              endDate: b.date,
+              hall: b.hall
+            }));
+
+          setAdminEvents(reservationItems);
+          setAdminBlocks(blockItems);
+        }
+      } catch (err) {
+        console.error('Failed to load admin calendar:', err.message);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    fetchAdminCal();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedHallId, mapReservation, mapBlock]);
 
   const filteredReservations = selectedHallId === 'All'
-    ? reservations
-    : reservations.filter(r => r.hallId === selectedHallId);
+    ? adminEvents
+    : adminEvents.filter(r => r.hallId === selectedHallId || r.hall?._id === selectedHallId);
 
   const filteredBlocks = selectedHallId === 'All'
-    ? blockedSlots
-    : blockedSlots.filter(b => b.hallId === selectedHallId);
+    ? adminBlocks
+    : adminBlocks.filter(b => b.hallId === selectedHallId || b.hall?._id === selectedHallId);
 
   return (
     <div className="space-y-8">
@@ -39,13 +92,17 @@ const AdminCalendarPage = () => {
           >
             <option value="All">All Campus Halls</option>
             {halls.map(h => (
-              <option key={h.id} value={h.id}>{h.name}</option>
+              <option key={h.id} value={h.id}>{h.name || h.hallName}</option>
             ))}
           </select>
         </div>
       </div>
 
-      <CalendarView reservations={filteredReservations} blockedSlots={filteredBlocks} halls={halls} />
+      {loading ? (
+        <div className="text-center py-12 text-slate-500 text-xs font-semibold">Loading master schedule...</div>
+      ) : (
+        <CalendarView reservations={filteredReservations} blockedSlots={filteredBlocks} halls={halls} />
+      )}
     </div>
   );
 };

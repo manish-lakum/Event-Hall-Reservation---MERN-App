@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import { dashboardService } from '../../services/dashboardService';
+import { reservationService } from '../../services/reservationService';
 import DashboardCard from '../../components/cards/DashboardCard';
-import StatusBadge from '../../components/common/StatusBadge';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import Modal from '../../components/common/Modal';
 import {
@@ -10,54 +11,100 @@ import {
   CalendarCheck,
   Clock,
   CheckCircle2,
-  AlertCircle,
   Calendar,
-  Users,
   Check,
   X,
   Eye,
   BarChart3,
-  TrendingUp,
-  ArrowRight
+  TrendingUp
 } from 'lucide-react';
 
 const AdminDashboardPage = () => {
-  const { halls, reservations, approveReservation, rejectReservation, blockedSlots } = useApp();
+  const { approveReservation, rejectReservation, mapReservation } = useApp();
+
+  const [adminDashData, setAdminDashData] = useState(null);
+  const [pendingRequestsList, setPendingRequestsList] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const [rejectModalTarget, setRejectModalTarget] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
   const [approveConfirmId, setApproveConfirmId] = useState(null);
 
-  // Stats calculations
-  const totalHalls = halls.length;
-  const totalReservations = reservations.length;
-  const pendingRequests = reservations.filter(r => r.status === 'Pending');
-  const approvedCount = reservations.filter(r => r.status === 'Approved').length;
+  const fetchDashboard = async () => {
+    try {
+      setLoading(true);
+      const [dashRes, resListRes] = await Promise.all([
+        dashboardService.getAdminDashboard(),
+        reservationService.getAdminReservations({ status: 'PENDING' })
+      ]);
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todaysReservations = reservations.filter(r => r.date === todayStr && r.status === 'Approved');
-  const upcomingCount = reservations.filter(r => r.status === 'Approved' && r.date >= todayStr).length;
+      if (dashRes.success && dashRes.data) {
+        setAdminDashData(dashRes.data);
+      }
 
-  // Monthly stats calculation for charts
-  const monthlyData = [
-    { month: 'Apr', count: 12 },
-    { month: 'May', count: 18 },
-    { month: 'Jun', count: 8 },
-    { month: 'Jul', count: 24 },
-    { month: 'Aug', count: 32 },
-    { month: 'Sep', count: 28 }
+      if (resListRes.success && Array.isArray(resListRes.data)) {
+        setPendingRequestsList(resListRes.data.map(mapReservation));
+      }
+    } catch (err) {
+      console.error('Failed to load admin dashboard:', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchDashboard();
+  }, []);
+
+  const summary = {
+    totalHalls: adminDashData?.hallStats?.activeHalls ?? adminDashData?.hallStats?.totalHalls ?? 0,
+    totalReservations: adminDashData?.reservationStats?.totalReservations ?? 0,
+    pendingReservations: adminDashData?.reservationStats?.pendingReservations ?? 0,
+    approvedReservations: adminDashData?.reservationStats?.approvedReservations ?? 0,
+    todaysReservations: adminDashData?.reservationStats?.todayReservations ?? 0,
+    upcomingReservations: adminDashData?.reservationStats?.upcomingReservations ?? 0
+  };
+
+  const todaysReservations = (adminDashData?.todaySchedule || []).map(mapReservation);
+  const monthlyData = adminDashData?.monthlyStats || adminDashData?.monthlyTrend || [
+    { month: 'Apr', count: 0 },
+    { month: 'May', count: 0 },
+    { month: 'Jun', count: 0 },
+    { month: 'Jul', count: 0 },
+    { month: 'Aug', count: 0 },
+    { month: 'Sep', count: 0 }
   ];
 
-  const maxMonthCount = Math.max(...monthlyData.map(m => m.count));
+  const maxMonthCount = Math.max(...monthlyData.map(m => m.count || m.total || 1), 1);
 
-  const handleConfirmReject = () => {
+  const handleConfirmApprove = async () => {
+    if (!approveConfirmId) return;
+    try {
+      const res = await approveReservation(approveConfirmId);
+      if (res.success) {
+        setApproveConfirmId(null);
+        await fetchDashboard();
+      }
+    } catch (err) {
+      console.error('Approval failed:', err.message);
+    }
+  };
+
+  const handleConfirmReject = async () => {
     if (!rejectReason.trim()) {
       alert('Please enter a valid reason for rejection.');
       return;
     }
-    rejectReservation(rejectModalTarget.id, rejectReason);
-    setRejectModalTarget(null);
-    setRejectReason('');
+    try {
+      const res = await rejectReservation(rejectModalTarget.id, rejectReason);
+      if (res.success) {
+        setRejectModalTarget(null);
+        setRejectReason('');
+        await fetchDashboard();
+      }
+    } catch (err) {
+      console.error('Rejection failed:', err.message);
+    }
   };
 
   return (
@@ -79,19 +126,19 @@ const AdminDashboardPage = () => {
             to="/admin/reservations"
             className="bg-[#0D9488] text-white text-xs font-bold px-4 py-2.5 rounded-xl hover:bg-teal-700 transition shadow-xs flex items-center gap-2"
           >
-            Review Requests ({pendingRequests.length})
+            Review Requests ({summary.pendingReservations})
           </Link>
         </div>
       </div>
 
       {/* 6 Key Statistic Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
-        <DashboardCard title="Total Halls" value={totalHalls} subtitle="Active campus venues" icon={Building2} color="indigo" />
-        <DashboardCard title="Reservations" value={totalReservations} subtitle="All time requests" icon={CalendarCheck} color="indigo" />
-        <DashboardCard title="Pending" value={pendingRequests.length} subtitle="Requires review" icon={Clock} color="amber" />
-        <DashboardCard title="Approved" value={approvedCount} subtitle="Active bookings" icon={CheckCircle2} color="teal" />
-        <DashboardCard title="Today's Events" value={todaysReservations.length} subtitle="Scheduled today" icon={Calendar} color="teal" />
-        <DashboardCard title="Upcoming" value={upcomingCount} subtitle="Calendar bookings" icon={TrendingUp} color="indigo" />
+        <DashboardCard title="Total Halls" value={loading ? '...' : summary.totalHalls} subtitle="Active campus venues" icon={Building2} color="indigo" />
+        <DashboardCard title="Reservations" value={loading ? '...' : summary.totalReservations} subtitle="All time requests" icon={CalendarCheck} color="indigo" />
+        <DashboardCard title="Pending" value={loading ? '...' : summary.pendingReservations} subtitle="Requires review" icon={Clock} color="amber" />
+        <DashboardCard title="Approved" value={loading ? '...' : summary.approvedReservations} subtitle="Active bookings" icon={CheckCircle2} color="teal" />
+        <DashboardCard title="Today's Events" value={loading ? '...' : summary.todaysReservations} subtitle="Scheduled today" icon={Calendar} color="teal" />
+        <DashboardCard title="Upcoming" value={loading ? '...' : summary.upcomingReservations} subtitle="Calendar bookings" icon={TrendingUp} color="indigo" />
       </div>
 
       {/* Main Section Split */}
@@ -106,11 +153,13 @@ const AdminDashboardPage = () => {
                 <h2 className="text-base font-bold text-[#4338CA]">Pending Requests Requiring Admin Action</h2>
               </div>
               <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full border border-amber-200">
-                {pendingRequests.length} Pending
+                {summary.pendingReservations} Pending
               </span>
             </div>
 
-            {pendingRequests.length > 0 ? (
+            {loading ? (
+              <div className="text-center py-6 text-slate-400 text-xs font-medium">Loading pending requests...</div>
+            ) : pendingRequestsList.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#F8FAFC] text-[#4338CA] font-bold uppercase tracking-wider border-b border-slate-200">
@@ -124,9 +173,9 @@ const AdminDashboardPage = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
-                    {pendingRequests.map((req) => (
+                    {pendingRequestsList.map((req) => (
                       <tr key={req.id} className="hover:bg-slate-50">
-                        <td className="p-3 font-mono font-bold text-[#4338CA]">{req.id}</td>
+                        <td className="p-3 font-mono font-bold text-[#4338CA]">{String(req.id).slice(-8)}</td>
                         <td className="p-3">
                           <div className="font-bold text-slate-800">{req.userName}</div>
                           <div className="text-[10px] text-slate-500">{req.userType} • {req.department}</div>
@@ -141,14 +190,14 @@ const AdminDashboardPage = () => {
                           <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => setApproveConfirmId(req.id)}
-                              className="p-1.5 bg-[#0D9488] text-white hover:bg-teal-700 rounded-md transition"
+                              className="p-1.5 bg-[#0D9488] text-white hover:bg-teal-700 rounded-md transition cursor-pointer"
                               title="Approve Request"
                             >
                               <Check className="w-3.5 h-3.5" />
                             </button>
                             <button
                               onClick={() => setRejectModalTarget(req)}
-                              className="p-1.5 bg-rose-600 text-white hover:bg-rose-700 rounded-md transition"
+                              className="p-1.5 bg-rose-600 text-white hover:bg-rose-700 rounded-md transition cursor-pointer"
                               title="Reject Request"
                             >
                               <X className="w-3.5 h-3.5" />
@@ -178,13 +227,15 @@ const AdminDashboardPage = () => {
           {/* Today's Hall Usage Schedule */}
           <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h2 className="text-base font-bold text-[#4338CA]">Today's Hall Utilization ({todayStr})</h2>
+              <h2 className="text-base font-bold text-[#4338CA]">Today's Hall Utilization</h2>
               <Link to="/admin/calendar" className="text-xs font-bold text-[#0D9488] hover:underline">
                 Open Schedule Calendar
               </Link>
             </div>
 
-            {todaysReservations.length > 0 ? (
+            {loading ? (
+              <div className="text-center py-4 text-slate-400 text-xs">Loading today's schedule...</div>
+            ) : todaysReservations.length > 0 ? (
               <div className="space-y-2.5">
                 {todaysReservations.map((r) => (
                   <div key={r.id} className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-100 text-xs flex items-center justify-between">
@@ -208,7 +259,7 @@ const AdminDashboardPage = () => {
 
         {/* Right Column: Analytics & Usage Charts */}
         <div className="lg:col-span-4 space-y-6">
-          {/* Bar Chart: Reservations by Month (60:30:10 Palette) */}
+          {/* Bar Chart: Monthly Volume */}
           <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
@@ -219,13 +270,14 @@ const AdminDashboardPage = () => {
             </div>
 
             <div className="h-44 flex items-end justify-between gap-2 pt-4 px-2">
-              {monthlyData.map((d) => {
-                const heightPercent = Math.round((d.count / maxMonthCount) * 100);
+              {monthlyData.map((d, i) => {
+                const countVal = d.count !== undefined ? d.count : (d.total || 0);
+                const heightPercent = Math.round((countVal / maxMonthCount) * 100);
                 return (
-                  <div key={d.month} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
-                    <span className="text-[10px] font-extrabold text-[#4338CA]">{d.count}</span>
+                  <div key={d.month || i} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
+                    <span className="text-[10px] font-extrabold text-[#4338CA]">{countVal}</span>
                     <div
-                      style={{ height: `${heightPercent}%` }}
+                      style={{ height: `${Math.max(10, heightPercent)}%` }}
                       className="w-full bg-[#4338CA] hover:bg-[#0D9488] transition-colors rounded-t-md"
                     ></div>
                     <span className="text-[11px] font-bold text-slate-500">{d.month}</span>
@@ -235,26 +287,16 @@ const AdminDashboardPage = () => {
             </div>
           </div>
 
-          {/* Recent System Activity Feed */}
+          {/* Recent Activity Feed */}
           <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-xs space-y-4">
             <h2 className="text-base font-bold text-[#4338CA] border-b border-slate-100 pb-3">
               Recent System Activity
             </h2>
             <div className="space-y-3 text-xs">
               <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
-                <div className="font-bold text-[#4338CA]">New Reservation Request</div>
-                <div className="text-slate-600">Prof. Alan Turing requested Conference Hall.</div>
-                <div className="text-[10px] text-slate-400">10 mins ago</div>
-              </div>
-              <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
-                <div className="font-bold text-[#0D9488]">Reservation Approved</div>
-                <div className="text-slate-600">Rahul Verma reservation for Seminar Hall approved.</div>
-                <div className="text-[10px] text-slate-400">1 hour ago</div>
-              </div>
-              <div className="p-2.5 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
-                <div className="font-bold text-rose-700">Maintenance Slot Blocked</div>
-                <div className="text-slate-600">Auditorium Hall blocked for HVAC repairs.</div>
-                <div className="text-[10px] text-slate-400">Yesterday</div>
+                <div className="font-bold text-[#4338CA]">System Online</div>
+                <div className="text-slate-600">MongoDB EventHall_db live connection active.</div>
+                <div className="text-[10px] text-slate-400">Live Status</div>
               </div>
             </div>
           </div>
@@ -265,14 +307,9 @@ const AdminDashboardPage = () => {
       <ConfirmDialog
         isOpen={Boolean(approveConfirmId)}
         onClose={() => setApproveConfirmId(null)}
-        onConfirm={() => {
-          if (approveConfirmId) {
-            approveReservation(approveConfirmId);
-            setApproveConfirmId(null);
-          }
-        }}
+        onConfirm={handleConfirmApprove}
         title="Approve Reservation Request"
-        message={`Are you sure you want to approve reservation request ${approveConfirmId}? The selected hall slot will be locked.`}
+        message={`Are you sure you want to approve reservation request? The selected hall slot will be locked.`}
         confirmText="Approve Request"
       />
 
@@ -301,7 +338,7 @@ const AdminDashboardPage = () => {
       >
         <div className="space-y-4">
           <p className="text-xs text-slate-600">
-            Provide an official reason for rejecting request <strong>{rejectModalTarget?.id}</strong> ({rejectModalTarget?.eventTitle}). This remark will be sent directly to the requester.
+            Provide an official reason for rejecting request <strong>{rejectModalTarget?.eventTitle}</strong>. This remark will be sent directly to the requester.
           </p>
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">

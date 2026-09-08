@@ -1,29 +1,63 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import { reservationService } from '../../services/reservationService';
 import StatusBadge from '../../components/common/StatusBadge';
 import EmptyState from '../../components/common/EmptyState';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
-import { CalendarCheck, Search, Filter, Eye, XCircle, CheckCircle2, Clock } from 'lucide-react';
+import { Search, Eye, XCircle } from 'lucide-react';
 
 const MyReservationsPage = () => {
-  const { currentUser, reservations, cancelReservation } = useApp();
-  const location = useLocation();
+  const { mapReservation } = useApp();
 
+  const [myReservations, setMyReservations] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [cancelTargetId, setCancelTargetId] = useState(null);
 
-  const userRes = reservations.filter(
-    r => r.userId === currentUser?.id || r.userEmail === currentUser?.email
-  );
+  const fetchMyRes = async () => {
+    try {
+      setLoading(true);
+      const res = await reservationService.getMyReservations();
+      if (res.success && Array.isArray(res.data)) {
+        setMyReservations(res.data.map(mapReservation));
+      }
+    } catch (err) {
+      console.error('Failed to fetch my reservations:', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const filteredReservations = userRes.filter((res) => {
-    const matchesTab = activeTab === 'All' || res.status.toLowerCase() === activeTab.toLowerCase();
+  useEffect(() => {
+    fetchMyRes();
+  }, []);
+
+  const handleConfirmCancel = async () => {
+    if (!cancelTargetId) return;
+    try {
+      const res = await reservationService.cancelReservation(cancelTargetId);
+      if (res.success) {
+        setCancelTargetId(null);
+        await fetchMyRes();
+      }
+    } catch (err) {
+      console.error('Cancel failed:', err.message);
+    }
+  };
+
+  const filteredReservations = myReservations.filter((res) => {
+    const status = res.status || 'Pending';
+    const matchesTab = activeTab === 'All' || status.toLowerCase() === activeTab.toLowerCase();
+    const idStr = String(res.id || '');
+    const hallStr = String(res.hallName || '');
+    const titleStr = String(res.eventTitle || '');
+
     const matchesSearch =
-      res.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      res.hallName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      res.eventTitle.toLowerCase().includes(searchQuery.toLowerCase());
+      idStr.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      hallStr.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      titleStr.toLowerCase().includes(searchQuery.toLowerCase());
 
     return matchesTab && matchesSearch;
   });
@@ -56,8 +90,8 @@ const MyReservationsPage = () => {
           <div className="flex flex-wrap gap-1">
             {tabs.map((tab) => {
               const count = tab === 'All'
-                ? userRes.length
-                : userRes.filter(r => r.status.toLowerCase() === tab.toLowerCase()).length;
+                ? myReservations.length
+                : myReservations.filter(r => (r.status || '').toLowerCase() === tab.toLowerCase()).length;
               return (
                 <button
                   key={tab}
@@ -90,7 +124,9 @@ const MyReservationsPage = () => {
         </div>
 
         {/* Table View */}
-        {filteredReservations.length > 0 ? (
+        {loading ? (
+          <div className="text-center py-12 text-slate-500 text-xs font-semibold">Loading reservations from database...</div>
+        ) : filteredReservations.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-[#F8FAFC] text-[#4338CA] font-bold uppercase tracking-wider border-b border-slate-200">
@@ -109,7 +145,7 @@ const MyReservationsPage = () => {
                   const canCancel = res.status === 'Pending' || res.status === 'Approved';
                   return (
                     <tr key={res.id} className="hover:bg-slate-50 transition">
-                      <td className="p-3.5 font-mono text-[#4338CA] font-bold">{res.id}</td>
+                      <td className="p-3.5 font-mono text-[#4338CA] font-bold">{String(res.id).slice(-8)}</td>
                       <td className="p-3.5 font-bold text-slate-800">{res.hallName}</td>
                       <td className="p-3.5">
                         <div className="font-bold text-slate-900">{res.eventTitle}</div>
@@ -137,7 +173,7 @@ const MyReservationsPage = () => {
                           {canCancel && (
                             <button
                               onClick={() => setCancelTargetId(res.id)}
-                              className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-md transition font-semibold text-[11px] flex items-center gap-1"
+                              className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-md transition font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
                               title="Cancel Request"
                             >
                               <XCircle className="w-3.5 h-3.5" />
@@ -172,14 +208,9 @@ const MyReservationsPage = () => {
       <ConfirmDialog
         isOpen={Boolean(cancelTargetId)}
         onClose={() => setCancelTargetId(null)}
-        onConfirm={() => {
-          if (cancelTargetId) {
-            cancelReservation(cancelTargetId);
-            setCancelTargetId(null);
-          }
-        }}
+        onConfirm={handleConfirmCancel}
         title="Confirm Reservation Cancellation"
-        message={`Are you sure you want to cancel reservation request ${cancelTargetId}? This action will release the hall slot.`}
+        message={`Are you sure you want to cancel reservation request? This action will release the hall slot.`}
         confirmText="Yes, Cancel Request"
         cancelText="Keep Reservation"
         type="danger"

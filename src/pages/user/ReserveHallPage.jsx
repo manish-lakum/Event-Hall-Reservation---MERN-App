@@ -1,14 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import {
   Building2,
-  Calendar,
-  Clock,
-  Users,
   CheckSquare,
-  FileText,
   User,
   AlertCircle,
   CheckCircle2
@@ -21,34 +17,36 @@ const ReserveHallPage = () => {
 
   const todayStr = new Date().toISOString().split('T')[0];
 
-  const paramHallId = searchParams.get('hallId') || halls[0]?.id || 'hall-1';
+  const paramHallId = searchParams.get('hallId') || (halls[0]?.id ? halls[0].id : '');
   const paramDate = searchParams.get('date') || todayStr;
   const paramStart = searchParams.get('startTime') || '09:00';
   const paramEnd = searchParams.get('endTime') || '12:00';
 
   const [formData, setFormData] = useState({
-    userName: currentUser?.name || 'Dr. Sarah Jenkins',
-    userEmail: currentUser?.email || 'sarah.jenkins@college.edu',
-    userType: currentUser?.userType || 'Faculty',
+    userName: currentUser?.name || '',
+    userEmail: currentUser?.email || '',
+    userType: currentUser?.userType || 'STUDENT',
     department: currentUser?.department || 'Computer Science',
-    employeeId: currentUser?.employeeId || 'EMP-CS-402',
+    employeeId: currentUser?.collegeId || 'ID-001',
 
     hallId: paramHallId,
     eventTitle: '',
-    eventType: 'Seminar / Workshop',
+    eventType: 'SEMINAR',
     eventDescription: '',
     date: paramDate,
     startTime: paramStart,
     endTime: paramEnd,
     expectedParticipants: 100,
-    requestedFacilities: ['Projector', 'Microphone', 'Sound System'],
+    requestedFacilities: ['PROJECTOR', 'MICROPHONE', 'SOUND_SYSTEM'],
     additionalNotes: ''
   });
 
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
 
-  const selectedHall = halls.find(h => h.id === formData.hallId) || halls[0];
+  const effectiveHallId = formData.hallId || (halls[0]?.id ? halls[0].id : '');
+  const selectedHall = halls.find(h => h.id === effectiveHallId) || halls[0];
 
   const handleFacilityChange = (facility) => {
     setFormData(prev => {
@@ -61,48 +59,68 @@ const ReserveHallPage = () => {
     });
   };
 
-  const handlePreSubmit = (e) => {
+  const handlePreSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (!effectiveHallId) {
+      setError('Please select a valid hall.');
+      return;
+    }
 
     if (formData.endTime <= formData.startTime) {
       setError('End time must be later than start time.');
       return;
     }
 
-    if (Number(formData.expectedParticipants) > selectedHall.capacity) {
+    if (selectedHall && Number(formData.expectedParticipants) > selectedHall.capacity) {
       setError(`Expected participants (${formData.expectedParticipants}) exceeds selected hall capacity (${selectedHall.capacity}).`);
       return;
     }
 
-    // Availability validation check
-    const check = checkAvailability(formData.hallId, formData.date, formData.startTime, formData.endTime);
-    if (!check.available) {
-      setError(check.message);
-      return;
-    }
+    try {
+      setLoading(true);
+      // Availability validation check from live API
+      const check = await checkAvailability(effectiveHallId, formData.date, formData.startTime, formData.endTime);
+      if (!check.available) {
+        setError(check.message);
+        return;
+      }
 
-    setShowConfirmModal(true);
+      setShowConfirmModal(true);
+    } catch (err) {
+      setError(err.message || 'Failed to check availability.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleFinalSubmit = () => {
-    const res = addReservation(formData);
-    if (res.success) {
-      navigate('/my-reservations', { state: { newId: res.reservation.id } });
-    } else {
-      setError(res.message);
+  const handleFinalSubmit = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const res = await addReservation({ ...formData, hallId: effectiveHallId });
+      if (res.success) {
+        navigate('/my-reservations', { state: { newId: res.reservation.id } });
+      } else {
+        setError(res.message || 'Failed to submit reservation.');
+      }
+    } catch (err) {
+      setError(err.message || 'Server error creating reservation.');
+    } finally {
+      setLoading(false);
     }
   };
 
   const allFacilitiesList = [
-    'Projector',
-    'Microphone',
-    'Sound System',
-    'Stage',
-    'Wi-Fi',
-    'Air Conditioning',
-    'Extra Chairs',
-    'Smart Board'
+    'PROJECTOR',
+    'MICROPHONE',
+    'SOUND_SYSTEM',
+    'STAGE',
+    'WIFI',
+    'AIR_CONDITIONING',
+    'SMART_BOARD',
+    'SPORTS_EQUIPMENT'
   ];
 
   return (
@@ -138,10 +156,9 @@ const ReserveHallPage = () => {
               <label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Full Name</label>
               <input
                 type="text"
-                value={formData.userName}
-                onChange={(e) => setFormData({ ...formData, userName: e.target.value })}
-                required
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] outline-hidden font-medium"
+                value={formData.userName || currentUser?.name || ''}
+                readOnly
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 outline-hidden font-medium"
               />
             </div>
 
@@ -149,47 +166,29 @@ const ReserveHallPage = () => {
               <label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Campus Email</label>
               <input
                 type="email"
-                value={formData.userEmail}
-                onChange={(e) => setFormData({ ...formData, userEmail: e.target.value })}
-                required
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] outline-hidden font-medium"
+                value={formData.userEmail || currentUser?.email || ''}
+                readOnly
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 outline-hidden font-medium"
               />
             </div>
 
             <div>
               <label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">User Type</label>
-              <select
-                value={formData.userType}
-                onChange={(e) => setFormData({ ...formData, userType: e.target.value })}
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] outline-hidden font-semibold text-slate-700 bg-white"
-              >
-                <option value="Faculty">Faculty Member</option>
-                <option value="Student">Student Representative</option>
-                <option value="Staff">Administrative Staff</option>
-                <option value="Department">Department Head</option>
-                <option value="College Club/Committee">College Club / Committee</option>
-              </select>
+              <input
+                type="text"
+                value={formData.userType || currentUser?.userType || 'STUDENT'}
+                readOnly
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 outline-hidden font-medium"
+              />
             </div>
 
             <div>
               <label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Department / Club</label>
               <input
                 type="text"
-                value={formData.department}
-                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                required
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] outline-hidden font-medium"
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Enrollment / Employee ID</label>
-              <input
-                type="text"
-                value={formData.employeeId}
-                onChange={(e) => setFormData({ ...formData, employeeId: e.target.value })}
-                required
-                className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] outline-hidden font-medium"
+                value={formData.department || currentUser?.department || 'General'}
+                readOnly
+                className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-slate-50 text-slate-600 outline-hidden font-medium"
               />
             </div>
           </div>
@@ -208,19 +207,21 @@ const ReserveHallPage = () => {
             <div className="sm:col-span-2">
               <label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Target Hall</label>
               <select
-                value={formData.hallId}
+                value={effectiveHallId}
                 onChange={(e) => setFormData({ ...formData, hallId: e.target.value })}
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] outline-hidden font-bold text-[#4338CA] bg-white"
               >
                 {halls.map((h) => (
                   <option key={h.id} value={h.id}>
-                    {h.name} ({h.type} • Capacity: {h.capacity} Persons)
+                    {h.name || h.hallName} ({h.hallType || h.type} • Capacity: {h.capacity} Persons)
                   </option>
                 ))}
               </select>
-              <div className="text-[11px] text-slate-500 mt-1 font-medium">
-                Max seating capacity for {selectedHall?.name}: <strong>{selectedHall?.capacity}</strong> persons.
-              </div>
+              {selectedHall && (
+                <div className="text-[11px] text-slate-500 mt-1 font-medium">
+                  Max seating capacity for {selectedHall?.name}: <strong>{selectedHall?.capacity}</strong> persons.
+                </div>
+              )}
             </div>
 
             <div className="sm:col-span-2">
@@ -242,14 +243,16 @@ const ReserveHallPage = () => {
                 onChange={(e) => setFormData({ ...formData, eventType: e.target.value })}
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] outline-hidden font-semibold text-slate-700 bg-white"
               >
-                <option value="Seminar / Workshop">Seminar / Workshop</option>
-                <option value="Guest Lecture">Guest Lecture</option>
-                <option value="Student Activity">Student Activity</option>
-                <option value="Club Event">Club Event</option>
-                <option value="Cultural Program">Cultural Program</option>
-                <option value="Academic Presentation">Academic Presentation</option>
-                <option value="Sports Activity">Sports Activity</option>
-                <option value="Department Meeting">Department Meeting</option>
+                <option value="SEMINAR">SEMINAR</option>
+                <option value="WORKSHOP">WORKSHOP</option>
+                <option value="GUEST_LECTURE">GUEST_LECTURE</option>
+                <option value="SPORTS">SPORTS</option>
+                <option value="CULTURAL">CULTURAL</option>
+                <option value="CLUB_EVENT">CLUB_EVENT</option>
+                <option value="DEPARTMENT_EVENT">DEPARTMENT_EVENT</option>
+                <option value="MEETING">MEETING</option>
+                <option value="PRESENTATION">PRESENTATION</option>
+                <option value="COLLEGE_FUNCTION">COLLEGE_FUNCTION</option>
               </select>
             </div>
 
@@ -258,7 +261,7 @@ const ReserveHallPage = () => {
               <input
                 type="number"
                 min={1}
-                max={selectedHall?.capacity}
+                max={selectedHall?.capacity || 1000}
                 value={formData.expectedParticipants}
                 onChange={(e) => setFormData({ ...formData, expectedParticipants: e.target.value })}
                 required
@@ -374,10 +377,11 @@ const ReserveHallPage = () => {
 
           <button
             type="submit"
-            className="px-8 py-3.5 text-sm font-extrabold text-white bg-[#0D9488] hover:bg-teal-700 rounded-xl transition shadow-md flex items-center gap-2"
+            disabled={loading}
+            className="px-8 py-3.5 text-sm font-extrabold text-white bg-[#0D9488] hover:bg-teal-700 rounded-xl transition shadow-md flex items-center gap-2 disabled:opacity-50"
           >
             <CheckCircle2 className="w-5 h-5" />
-            Submit Reservation Request
+            {loading ? 'Validating...' : 'Submit Reservation Request'}
           </button>
         </div>
       </form>
@@ -388,7 +392,7 @@ const ReserveHallPage = () => {
         onClose={() => setShowConfirmModal(false)}
         onConfirm={handleFinalSubmit}
         title="Confirm Hall Reservation Request"
-        message={`Are you sure you want to submit a reservation request for ${selectedHall?.name} on ${formData.date} (${formData.startTime} - ${formData.endTime})? The request will be submitted to Admin for review.`}
+        message={`Are you sure you want to submit a reservation request for ${selectedHall?.name || selectedHall?.hallName} on ${formData.date} (${formData.startTime} - ${formData.endTime})? The request will be submitted to Admin for review.`}
         confirmText="Confirm & Submit"
         cancelText="Review Form"
       />

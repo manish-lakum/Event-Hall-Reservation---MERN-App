@@ -1,24 +1,46 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import HallCard from '../../components/cards/HallCard';
 import EmptyState from '../../components/common/EmptyState';
-import { Search, Filter, Building2, SlidersHorizontal } from 'lucide-react';
+import { Search } from 'lucide-react';
 
 const BrowseHallsPage = () => {
-  const { halls } = useApp();
+  const { halls, fetchHalls } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('All');
   const [selectedCapacity, setSelectedCapacity] = useState('All');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const load = async () => {
+      setLoading(true);
+      await fetchHalls({ admin: false });
+      if (isMounted) setLoading(false);
+    };
+    load();
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchHalls]);
 
   const filteredHalls = useMemo(() => {
     return halls.filter((hall) => {
-      const matchesSearch =
-        hall.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        hall.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        hall.description.toLowerCase().includes(searchQuery.toLowerCase());
+      if (hall.isActive === false) return false;
+      const name = hall.name || hall.hallName || '';
+      const location = hall.location || '';
+      const description = hall.description || '';
+      const type = hall.hallType || hall.type || '';
 
-      const matchesType = selectedType === 'All' || hall.type.toLowerCase() === selectedType.toLowerCase();
+      const matchesSearch =
+        name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        description.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesType =
+        selectedType === 'All' ||
+        type.toLowerCase() === selectedType.toLowerCase();
 
       let matchesCap = true;
       if (selectedCapacity === '<100') matchesCap = hall.capacity < 100;
@@ -95,7 +117,9 @@ const BrowseHallsPage = () => {
       </div>
 
       {/* Halls Grid */}
-      {filteredHalls.length > 0 ? (
+      {loading ? (
+        <div className="text-center py-12 text-slate-500 text-xs font-semibold">Loading halls from database...</div>
+      ) : filteredHalls.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredHalls.map((hall) => (
             <HallCard key={hall.id} hall={hall} />

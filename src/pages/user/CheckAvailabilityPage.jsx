@@ -1,37 +1,43 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import StatusBadge from '../../components/common/StatusBadge';
-import { Search, Clock, Calendar, CheckCircle2, AlertTriangle, ArrowRight, Building2 } from 'lucide-react';
+import { Search, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
 
 const CheckAvailabilityPage = () => {
   const [searchParams] = useSearchParams();
   const { halls, checkAvailability, reservations, blockedSlots } = useApp();
 
-  const initialHallId = searchParams.get('hallId') || halls[0]?.id || 'hall-1';
-
+  const initialHallId = searchParams.get('hallId') || (halls[0]?.id ? halls[0].id : '');
   const todayStr = new Date().toISOString().split('T')[0];
 
   const [selectedHallId, setSelectedHallId] = useState(initialHallId);
   const [selectedDate, setSelectedDate] = useState(todayStr);
   const [startTime, setStartTime] = useState('10:00');
   const [endTime, setEndTime] = useState('12:00');
+  const [loading, setLoading] = useState(false);
 
   const [checkResult, setCheckResult] = useState(null);
 
-  const selectedHall = halls.find(h => h.id === selectedHallId) || halls[0];
+  const effectiveHallId = selectedHallId || (halls[0]?.id ? halls[0].id : '');
+  const selectedHall = halls.find(h => h.id === effectiveHallId) || halls[0];
 
   // Schedule for selected date & hall
   const dayReservations = reservations.filter(
-    r => r.hallId === selectedHallId && r.date === selectedDate && (r.status === 'Approved' || r.status === 'Pending')
+    r => (r.hallId === effectiveHallId || r.hall?._id === effectiveHallId) &&
+      (r.date === selectedDate || r.eventDate === selectedDate) &&
+      (r.status === 'Approved' || r.status === 'Pending')
   );
 
   const dayBlocks = blockedSlots.filter(
-    b => b.hallId === selectedHallId && b.startDate <= selectedDate && b.endDate >= selectedDate
+    b => (b.hallId === effectiveHallId || b.hall?._id === effectiveHallId) &&
+      b.startDate <= selectedDate && b.endDate >= selectedDate
   );
 
-  const handleCheck = (e) => {
+  const handleCheck = async (e) => {
     e.preventDefault();
+    if (!effectiveHallId) return;
+
     if (endTime <= startTime) {
       setCheckResult({
         available: false,
@@ -40,8 +46,18 @@ const CheckAvailabilityPage = () => {
       return;
     }
 
-    const res = checkAvailability(selectedHallId, selectedDate, startTime, endTime);
-    setCheckResult(res);
+    try {
+      setLoading(true);
+      const res = await checkAvailability(effectiveHallId, selectedDate, startTime, endTime);
+      setCheckResult(res);
+    } catch (err) {
+      setCheckResult({
+        available: false,
+        message: err.message || 'Availability check failed.'
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -70,7 +86,7 @@ const CheckAvailabilityPage = () => {
                 Select Campus Hall
               </label>
               <select
-                value={selectedHallId}
+                value={effectiveHallId}
                 onChange={(e) => {
                   setSelectedHallId(e.target.value);
                   setCheckResult(null);
@@ -79,7 +95,7 @@ const CheckAvailabilityPage = () => {
               >
                 {halls.map((h) => (
                   <option key={h.id} value={h.id}>
-                    {h.name} ({h.type} • Cap: {h.capacity})
+                    {h.name || h.hallName} ({h.hallType || h.type} • Cap: {h.capacity})
                   </option>
                 ))}
               </select>
@@ -140,10 +156,11 @@ const CheckAvailabilityPage = () => {
 
             <button
               type="submit"
-              className="w-full bg-[#0D9488] text-white py-3 rounded-xl font-bold text-sm hover:bg-teal-700 transition shadow-md flex items-center justify-center gap-2"
+              disabled={loading}
+              className="w-full bg-[#0D9488] text-white py-3 rounded-xl font-bold text-sm hover:bg-teal-700 transition shadow-md flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <Search className="w-4 h-4" />
-              Check Slot Availability
+              {loading ? 'Checking Engine...' : 'Check Slot Availability'}
             </button>
           </form>
 
@@ -164,7 +181,11 @@ const CheckAvailabilityPage = () => {
                 )}
                 <div>
                   <h3 className="font-extrabold text-sm">
-                    {checkResult.available ? 'Slot Available!' : 'Slot Conflict Detected'}
+                    {checkResult.available
+                      ? 'Slot Available!'
+                      : (checkResult.reason === 'PAST_TIME' || checkResult.message?.toLowerCase().includes('passed')
+                          ? 'Time Slot Expired'
+                          : 'Slot Conflict Detected')}
                   </h3>
                   <p className="text-xs mt-1 leading-relaxed">{checkResult.message}</p>
                 </div>
@@ -173,7 +194,7 @@ const CheckAvailabilityPage = () => {
               {checkResult.available && (
                 <div className="pt-2">
                   <Link
-                    to={`/reserve?hallId=${selectedHallId}&date=${selectedDate}&startTime=${startTime}&endTime=${endTime}`}
+                    to={`/reserve?hallId=${effectiveHallId}&date=${selectedDate}&startTime=${startTime}&endTime=${endTime}`}
                     className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#0D9488] text-white rounded-xl text-xs font-bold hover:bg-teal-700 transition shadow-sm"
                   >
                     <span>Proceed to Reserve This Slot</span>
@@ -190,7 +211,7 @@ const CheckAvailabilityPage = () => {
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h2 className="text-base font-bold text-[#4338CA]">{selectedHall?.name} Schedule</h2>
+                <h2 className="text-base font-bold text-[#4338CA]">{selectedHall?.name || selectedHall?.hallName} Schedule</h2>
                 <p className="text-xs text-slate-500">Date: {selectedDate}</p>
               </div>
               <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded">

@@ -1,16 +1,15 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
+import { hallService } from '../../services/hallService';
 import StatusBadge from '../../components/common/StatusBadge';
 import {
   Users,
   MapPin,
   Clock,
   CheckCircle,
-  Calendar,
   ArrowRight,
   ArrowLeft,
-  Building2,
   AlertTriangle,
   Info
 } from 'lucide-react';
@@ -18,16 +17,57 @@ import {
 const HallDetailsPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { halls, reservations, blockedSlots } = useApp();
+  const { halls, reservations, blockedSlots, mapHall } = useApp();
 
-  const hall = halls.find(h => h.id === id) || halls[0];
+  const [hallData, setHallData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadHall = async () => {
+      try {
+        setLoading(true);
+        const res = await hallService.getHallById(id);
+        if (res.success && res.data) {
+          setHallData(mapHall(res.data));
+        } else {
+          // Fallback to local halls array if matched
+          const found = halls.find(h => h.id === id);
+          if (found) setHallData(found);
+        }
+      } catch (err) {
+        const found = halls.find(h => h.id === id);
+        if (found) setHallData(found);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) loadHall();
+  }, [id, halls, mapHall]);
+
+  const hall = hallData || halls.find(h => h.id === id) || halls[0];
+
+  if (loading && !hall) {
+    return <div className="text-center py-12 text-slate-500 text-xs font-semibold">Loading venue details...</div>;
+  }
+
+  if (!hall) {
+    return (
+      <div className="text-center py-12 space-y-4">
+        <h2 className="text-xl font-bold text-[#4338CA]">Hall Not Found</h2>
+        <button onClick={() => navigate('/halls')} className="bg-[#0D9488] text-white px-4 py-2 rounded-lg text-xs font-bold">
+          Back to Hall Listing
+        </button>
+      </div>
+    );
+  }
 
   // Occupied slots for this hall
   const hallReservations = reservations.filter(
-    r => r.hallId === hall.id && (r.status === 'Approved' || r.status === 'Pending')
+    r => (r.hallId === hall.id || r.hall?._id === hall.id) && (r.status === 'Approved' || r.status === 'Pending')
   );
 
-  const hallBlocks = blockedSlots.filter(b => b.hallId === hall.id);
+  const hallBlocks = blockedSlots.filter(b => b.hallId === hall.id || b.hall?._id === hall.id);
 
   return (
     <div className="space-y-8">
@@ -35,7 +75,7 @@ const HallDetailsPage = () => {
       <div>
         <button
           onClick={() => navigate(-1)}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#4338CA] hover:underline bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs"
+          className="inline-flex items-center gap-1.5 text-xs font-bold text-[#4338CA] hover:underline bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-2xs cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           Back to Hall Listing
@@ -46,14 +86,14 @@ const HallDetailsPage = () => {
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-md">
         <div className="relative h-72 sm:h-96 w-full">
           <img
-            src={hall.image}
+            src={hall.image || 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?auto=format&fit=crop&w=1000&q=80'}
             alt={hall.name}
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent flex flex-col justify-end p-6 sm:p-8 text-white space-y-2">
             <div className="flex items-center gap-3">
               <span className="bg-[#0D9488] text-white text-xs font-extrabold px-3 py-1 rounded-md">
-                {hall.type}
+                {hall.hallType || hall.type}
               </span>
               <StatusBadge status={hall.status} />
             </div>
@@ -90,7 +130,7 @@ const HallDetailsPage = () => {
             <div className="space-y-3 pt-4 border-t border-slate-100">
               <h3 className="text-base font-bold text-[#4338CA]">Available Hall Facilities</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {hall.facilities.map((facility) => (
+                {(hall.facilities || []).map((facility) => (
                   <div
                     key={facility}
                     className="flex items-center gap-2.5 p-3 rounded-xl bg-indigo-50/60 border border-indigo-100 text-xs font-semibold text-[#4338CA]"

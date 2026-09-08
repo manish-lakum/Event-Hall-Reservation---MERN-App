@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { User, Mail, Building2, Phone, ShieldCheck, KeyRound, CheckCircle, Save } from 'lucide-react';
+import { profileService } from '../../services/profileService';
+import { CheckCircle, Save, AlertCircle } from 'lucide-react';
 
 const UserProfilePage = () => {
   const { currentUser, updateUserProfile } = useApp();
@@ -10,34 +11,85 @@ const UserProfilePage = () => {
     name: currentUser?.name || '',
     email: currentUser?.email || '',
     department: currentUser?.department || '',
-    phone: currentUser?.phone || '',
-    employeeId: currentUser?.employeeId || ''
+    phone: currentUser?.phone || ''
   });
 
   const [passwordForm, setPasswordForm] = useState({
-    oldPassword: '',
+    currentPassword: '',
     newPassword: '',
     confirmPassword: ''
   });
 
   const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleProfileSubmit = (e) => {
+  useEffect(() => {
+    if (currentUser) {
+      setProfileForm({
+        name: currentUser.name || '',
+        email: currentUser.email || '',
+        department: currentUser.department || '',
+        phone: currentUser.phone || ''
+      });
+    }
+  }, [currentUser]);
+
+  const handleProfileSubmit = async (e) => {
     e.preventDefault();
-    updateUserProfile(profileForm);
-    setMessage('Profile information successfully updated!');
-    setTimeout(() => setMessage(''), 3000);
+    try {
+      setLoading(true);
+      setError('');
+      setMessage('');
+      const res = await updateUserProfile({
+        name: profileForm.name,
+        department: profileForm.department,
+        phone: profileForm.phone
+      });
+
+      if (res.success) {
+        setMessage('Profile information successfully updated!');
+        setTimeout(() => setMessage(''), 4000);
+      } else {
+        setError(res.message || 'Failed to update profile.');
+      }
+    } catch (err) {
+      setError(err.message || 'Server error updating profile.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handlePasswordSubmit = (e) => {
+  const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      alert('New passwords do not match.');
+      setError('New passwords do not match.');
       return;
     }
-    setMessage('Account password successfully changed!');
-    setPasswordForm({ oldPassword: '', newPassword: '', confirmPassword: '' });
-    setTimeout(() => setMessage(''), 3000);
+
+    try {
+      setLoading(true);
+      setError('');
+      setMessage('');
+
+      const res = await profileService.changePassword({
+        currentPassword: passwordForm.currentPassword,
+        newPassword: passwordForm.newPassword,
+        confirmPassword: passwordForm.confirmPassword
+      });
+
+      if (res.success) {
+        setMessage('Account password successfully changed!');
+        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+        setTimeout(() => setMessage(''), 4000);
+      } else {
+        setError(res.message || 'Password change failed.');
+      }
+    } catch (err) {
+      setError(err.message || 'Password update error.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -58,6 +110,13 @@ const UserProfilePage = () => {
         </div>
       )}
 
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl font-bold flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 text-rose-600" />
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* Main Profile Showcase Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         {/* Profile Card Top Banner */}
@@ -71,12 +130,12 @@ const UserProfilePage = () => {
             <div className="flex items-center justify-center sm:justify-start gap-2">
               <h2 className="text-xl font-extrabold">{currentUser?.name}</h2>
               <span className="bg-[#0D9488] text-white text-[10px] font-bold px-2 py-0.5 rounded">
-                {currentUser?.userType}
+                {currentUser?.userType || currentUser?.role}
               </span>
             </div>
             <p className="text-xs text-indigo-200 font-medium">{currentUser?.email}</p>
             <p className="text-xs text-indigo-200">
-              Department: <strong>{currentUser?.department}</strong> • ID: <strong>{currentUser?.employeeId}</strong>
+              Department: <strong>{currentUser?.department || 'General'}</strong> • ID: <strong>{currentUser?.collegeId || 'ID-001'}</strong>
             </p>
           </div>
         </div>
@@ -85,7 +144,7 @@ const UserProfilePage = () => {
         <div className="flex border-b border-slate-200 bg-slate-50 px-6 pt-3 text-xs font-bold">
           <button
             onClick={() => setActiveTab('profile')}
-            className={`pb-3 px-4 transition border-b-2 ${
+            className={`pb-3 px-4 transition border-b-2 cursor-pointer ${
               activeTab === 'profile'
                 ? 'border-[#0D9488] text-[#4338CA]'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -95,7 +154,7 @@ const UserProfilePage = () => {
           </button>
           <button
             onClick={() => setActiveTab('password')}
-            className={`pb-3 px-4 transition border-b-2 ${
+            className={`pb-3 px-4 transition border-b-2 cursor-pointer ${
               activeTab === 'password'
                 ? 'border-[#0D9488] text-[#4338CA]'
                 : 'border-transparent text-slate-500 hover:text-slate-700'
@@ -156,9 +215,10 @@ const UserProfilePage = () => {
             <div className="pt-2 flex justify-end">
               <button
                 type="submit"
-                className="bg-[#0D9488] text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition shadow-sm flex items-center gap-1.5"
+                disabled={loading}
+                className="bg-[#0D9488] text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition shadow-sm flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
               >
-                <Save className="w-4 h-4" /> Save Profile Updates
+                <Save className="w-4 h-4" /> {loading ? 'Saving...' : 'Save Profile Updates'}
               </button>
             </div>
           </form>
@@ -171,8 +231,8 @@ const UserProfilePage = () => {
               <label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Current Password</label>
               <input
                 type="password"
-                value={passwordForm.oldPassword}
-                onChange={(e) => setPasswordForm({ ...passwordForm, oldPassword: e.target.value })}
+                value={passwordForm.currentPassword}
+                onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
                 required
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] outline-hidden font-medium"
               />
@@ -202,9 +262,10 @@ const UserProfilePage = () => {
 
             <button
               type="submit"
-              className="bg-[#0D9488] text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition shadow-sm"
+              disabled={loading}
+              className="bg-[#0D9488] text-white px-6 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition shadow-sm disabled:opacity-50 cursor-pointer"
             >
-              Update Password
+              {loading ? 'Updating...' : 'Update Password'}
             </button>
           </form>
         )}

@@ -1,47 +1,90 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/common/EmptyState';
-import { Ban, Calendar, Clock, Plus, Trash2, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Ban, Plus, Trash2, AlertCircle } from 'lucide-react';
 
 const BlockHallPage = () => {
-  const { halls, blockedSlots, addBlockedSlot, deleteBlockedSlot } = useApp();
+  const { halls, blockedSlots, fetchBlockedSlots, addBlockedSlot, deleteBlockedSlot } = useApp();
 
   const todayStr = new Date().toISOString().split('T')[0];
 
   const [form, setForm] = useState({
-    hallId: halls[0]?.id || 'hall-1',
+    hallId: halls[0]?.id || '',
     startDate: todayStr,
     endDate: todayStr,
     startTime: '08:00',
     endTime: '18:00',
-    reason: 'Maintenance',
+    reason: 'MAINTENANCE',
     notes: ''
   });
 
   const [deleteTargetId, setDeleteTargetId] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const loadBlocks = async () => {
+    setLoading(true);
+    await fetchBlockedSlots();
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadBlocks();
+  }, []);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    addBlockedSlot(form);
-    setForm({
-      hallId: halls[0]?.id || 'hall-1',
-      startDate: todayStr,
-      endDate: todayStr,
-      startTime: '08:00',
-      endTime: '18:00',
-      reason: 'Maintenance',
-      notes: ''
-    });
+    const effectiveHallId = form.hallId || (halls[0]?.id ? halls[0].id : '');
+    if (!effectiveHallId) {
+      setError('Please select a valid hall venue.');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError('');
+      const res = await addBlockedSlot({ ...form, hallId: effectiveHallId });
+      if (res.success) {
+        setForm({
+          hallId: effectiveHallId,
+          startDate: todayStr,
+          endDate: todayStr,
+          startTime: '08:00',
+          endTime: '18:00',
+          reason: 'MAINTENANCE',
+          notes: ''
+        });
+        await loadBlocks();
+      } else {
+        setError(res.message || 'Failed to create maintenance block.');
+      }
+    } catch (err) {
+      setError(err.message || 'Error creating maintenance block.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetId) return;
+    try {
+      const res = await deleteBlockedSlot(deleteTargetId);
+      if (res.success) {
+        setDeleteTargetId(null);
+        await loadBlocks();
+      }
+    } catch (err) {
+      console.error('Unblock error:', err.message);
+    }
   };
 
   const reasonsList = [
-    'Maintenance',
-    'Examination',
-    'College Function',
-    'Cleaning',
-    'Technical Work',
-    'Administrative Use'
+    'MAINTENANCE',
+    'EXAMINATION',
+    'CLEANING',
+    'TECHNICAL_WORK',
+    'COLLEGE_FUNCTION'
   ];
 
   return (
@@ -55,6 +98,13 @@ const BlockHallPage = () => {
         </p>
       </div>
 
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl font-bold flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Form Column */}
         <div className="lg:col-span-5 space-y-6">
@@ -67,12 +117,12 @@ const BlockHallPage = () => {
             <div>
               <label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Select Hall Venue</label>
               <select
-                value={form.hallId}
+                value={form.hallId || (halls[0]?.id ? halls[0].id : '')}
                 onChange={(e) => setForm({ ...form, hallId: e.target.value })}
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] outline-hidden font-bold text-[#4338CA] bg-white"
               >
                 {halls.map(h => (
-                  <option key={h.id} value={h.id}>{h.name} ({h.type})</option>
+                  <option key={h.id} value={h.id}>{h.name || h.hallName} ({h.hallType || h.type})</option>
                 ))}
               </select>
             </div>
@@ -151,9 +201,10 @@ const BlockHallPage = () => {
 
             <button
               type="submit"
-              className="w-full bg-[#4338CA] text-white py-3 rounded-xl font-bold hover:bg-indigo-900 transition shadow-md flex items-center justify-center gap-1.5"
+              disabled={loading}
+              className="w-full bg-[#4338CA] text-white py-3 rounded-xl font-bold hover:bg-indigo-900 transition shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50 cursor-pointer"
             >
-              <Plus className="w-4 h-4 text-teal-400" /> Apply Hall Maintenance Block
+              <Plus className="w-4 h-4 text-teal-400" /> {loading ? 'Applying...' : 'Apply Hall Maintenance Block'}
             </button>
           </form>
         </div>
@@ -168,7 +219,9 @@ const BlockHallPage = () => {
               </span>
             </h2>
 
-            {blockedSlots.length > 0 ? (
+            {loading ? (
+              <div className="text-center py-12 text-slate-500 text-xs font-semibold">Loading blocks from database...</div>
+            ) : blockedSlots.length > 0 ? (
               <div className="space-y-3 text-xs">
                 {blockedSlots.map((blk) => (
                   <div key={blk.id} className="p-4 rounded-xl border border-amber-200 bg-amber-50/60 flex items-start justify-between gap-4">
@@ -187,7 +240,7 @@ const BlockHallPage = () => {
 
                     <button
                       onClick={() => setDeleteTargetId(blk.id)}
-                      className="p-1.5 bg-white text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition shrink-0"
+                      className="p-1.5 bg-white text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg transition shrink-0 cursor-pointer"
                       title="Remove Maintenance Block"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -206,12 +259,7 @@ const BlockHallPage = () => {
       <ConfirmDialog
         isOpen={Boolean(deleteTargetId)}
         onClose={() => setDeleteTargetId(null)}
-        onConfirm={() => {
-          if (deleteTargetId) {
-            deleteBlockedSlot(deleteTargetId);
-            setDeleteTargetId(null);
-          }
-        }}
+        onConfirm={handleConfirmDelete}
         title="Remove Maintenance Block"
         message="Are you sure you want to unblock this hall? Users will be able to submit reservations for this time period."
         confirmText="Unblock Hall"

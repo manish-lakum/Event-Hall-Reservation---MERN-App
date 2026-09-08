@@ -1,11 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Settings, Save, CheckCircle, ShieldCheck, Building2, Sliders } from 'lucide-react';
 
+const defaultSettings = {
+  collegeName: 'Sardar Vallabhbhai Global University (SVGU)',
+  shortName: 'SVGU',
+  contactEmail: 'admin@svgu.edu.in',
+  contactPhone: '+91 79 2328 7000',
+  allowWeekendBookings: true,
+  maxAdvanceBookingDays: 30,
+  autoApprovalEnabled: false,
+  reservationRules: {
+    minBookingDurationHours: 1,
+    maxBookingDurationHours: 8,
+    advanceBookingLimitDays: 30,
+    allowWeekendBooking: true,
+    autoApproveFaculty: false
+  }
+};
+
 const AdminSettingsPage = () => {
   const { settings, updateSettings } = useApp();
-  const [form, setForm] = useState(settings);
+  const [form, setForm] = useState(() => ({
+    ...defaultSettings,
+    ...(settings || {}),
+    reservationRules: {
+      ...defaultSettings.reservationRules,
+      ...(settings?.reservationRules || {})
+    }
+  }));
   const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    if (settings) {
+      setForm(prev => ({
+        ...defaultSettings,
+        ...prev,
+        ...settings,
+        reservationRules: {
+          ...defaultSettings.reservationRules,
+          ...(prev?.reservationRules || {}),
+          ...(settings?.reservationRules || {})
+        }
+      }));
+    }
+  }, [settings]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -45,7 +84,7 @@ const AdminSettingsPage = () => {
               <label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">College Name *</label>
               <input
                 type="text"
-                value={form.collegeName}
+                value={form.collegeName ?? ''}
                 onChange={(e) => setForm({ ...form, collegeName: e.target.value })}
                 required
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] outline-hidden font-bold"
@@ -56,7 +95,7 @@ const AdminSettingsPage = () => {
               <label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Abbreviation / Short Name</label>
               <input
                 type="text"
-                value={form.shortName}
+                value={form.shortName ?? ''}
                 onChange={(e) => setForm({ ...form, shortName: e.target.value })}
                 required
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] outline-hidden font-medium"
@@ -67,7 +106,7 @@ const AdminSettingsPage = () => {
               <label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Helpdesk Email</label>
               <input
                 type="email"
-                value={form.contactEmail}
+                value={form.contactEmail ?? ''}
                 onChange={(e) => setForm({ ...form, contactEmail: e.target.value })}
                 required
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] outline-hidden font-medium"
@@ -78,7 +117,7 @@ const AdminSettingsPage = () => {
               <label className="block font-bold text-slate-700 mb-1 uppercase tracking-wider">Helpdesk Phone</label>
               <input
                 type="text"
-                value={form.contactPhone}
+                value={form.contactPhone ?? ''}
                 onChange={(e) => setForm({ ...form, contactPhone: e.target.value })}
                 required
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] outline-hidden font-medium"
@@ -101,10 +140,10 @@ const AdminSettingsPage = () => {
                 type="number"
                 min={1}
                 max={4}
-                value={form.reservationRules.minBookingDurationHours}
+                value={form.reservationRules?.minBookingDurationHours ?? 1}
                 onChange={(e) => setForm({
                   ...form,
-                  reservationRules: { ...form.reservationRules, minBookingDurationHours: Number(e.target.value) }
+                  reservationRules: { ...(form.reservationRules || {}), minBookingDurationHours: Number(e.target.value) }
                 })}
                 required
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-300 font-medium"
@@ -117,10 +156,10 @@ const AdminSettingsPage = () => {
                 type="number"
                 min={4}
                 max={24}
-                value={form.reservationRules.maxBookingDurationHours}
+                value={form.reservationRules?.maxBookingDurationHours ?? 8}
                 onChange={(e) => setForm({
                   ...form,
-                  reservationRules: { ...form.reservationRules, maxBookingDurationHours: Number(e.target.value) }
+                  reservationRules: { ...(form.reservationRules || {}), maxBookingDurationHours: Number(e.target.value) }
                 })}
                 required
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-300 font-medium"
@@ -133,10 +172,10 @@ const AdminSettingsPage = () => {
                 type="number"
                 min={7}
                 max={180}
-                value={form.reservationRules.advanceBookingLimitDays}
+                value={form.reservationRules?.advanceBookingLimitDays ?? 30}
                 onChange={(e) => setForm({
                   ...form,
-                  reservationRules: { ...form.reservationRules, advanceBookingLimitDays: Number(e.target.value) }
+                  reservationRules: { ...(form.reservationRules || {}), advanceBookingLimitDays: Number(e.target.value) }
                 })}
                 required
                 className="w-full px-3 py-2.5 rounded-lg border border-slate-300 font-medium"
@@ -148,10 +187,10 @@ const AdminSettingsPage = () => {
             <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700">
               <input
                 type="checkbox"
-                checked={form.reservationRules.allowWeekendBooking}
+                checked={Boolean(form.reservationRules?.allowWeekendBooking ?? false)}
                 onChange={(e) => setForm({
                   ...form,
-                  reservationRules: { ...form.reservationRules, allowWeekendBooking: e.target.checked }
+                  reservationRules: { ...(form.reservationRules || {}), allowWeekendBooking: e.target.checked }
                 })}
                 className="rounded text-[#0D9488] focus:ring-[#0D9488]"
               />
@@ -161,10 +200,10 @@ const AdminSettingsPage = () => {
             <label className="flex items-center gap-2 cursor-pointer font-bold text-slate-700">
               <input
                 type="checkbox"
-                checked={form.reservationRules.autoApproveFaculty}
+                checked={Boolean(form.reservationRules?.autoApproveFaculty ?? false)}
                 onChange={(e) => setForm({
                   ...form,
-                  reservationRules: { ...form.reservationRules, autoApproveFaculty: e.target.checked }
+                  reservationRules: { ...(form.reservationRules || {}), autoApproveFaculty: e.target.checked }
                 })}
                 className="rounded text-[#0D9488] focus:ring-[#0D9488]"
               />

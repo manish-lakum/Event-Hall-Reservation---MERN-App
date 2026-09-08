@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import EmptyState from '../../components/common/EmptyState';
-import { Bell, CheckCheck, CheckCircle2, AlertCircle, AlertTriangle, Info, ShieldCheck } from 'lucide-react';
+import { CheckCheck, CheckCircle2, AlertCircle, AlertTriangle, Info } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const AdminNotificationsPage = () => {
-  const { notifications, markNotificationRead, markAllNotificationsRead } = useApp();
+  const { notifications, fetchNotifications, markNotificationRead, markAllNotificationsRead } = useApp();
   const [filter, setFilter] = useState('All');
 
-  const adminNotifs = notifications.filter(n => n.recipientType === 'Admin');
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
-  const filteredNotifs = adminNotifs.filter(n => {
+  const filteredNotifs = notifications.filter(n => {
     if (filter === 'Unread') return !n.isRead;
     return true;
   });
@@ -41,8 +43,8 @@ const AdminNotificationsPage = () => {
         </div>
 
         <button
-          onClick={() => markAllNotificationsRead('Admin')}
-          className="bg-indigo-50 text-[#4338CA] hover:bg-indigo-100 px-3.5 py-2 rounded-xl text-xs font-bold transition border border-indigo-200 flex items-center gap-1.5 w-fit"
+          onClick={() => markAllNotificationsRead()}
+          className="bg-indigo-50 text-[#4338CA] hover:bg-indigo-100 px-3.5 py-2 rounded-xl text-xs font-bold transition border border-indigo-200 flex items-center gap-1.5 w-fit cursor-pointer"
         >
           <CheckCheck className="w-4 h-4 text-[#0D9488]" /> Mark All as Read
         </button>
@@ -52,19 +54,19 @@ const AdminNotificationsPage = () => {
       <div className="flex items-center gap-2">
         <button
           onClick={() => setFilter('All')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
             filter === 'All' ? 'bg-[#4338CA] text-white' : 'bg-white border border-slate-200 text-slate-600'
           }`}
         >
-          All ({adminNotifs.length})
+          All ({notifications.length})
         </button>
         <button
           onClick={() => setFilter('Unread')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
             filter === 'Unread' ? 'bg-[#4338CA] text-white' : 'bg-white border border-slate-200 text-slate-600'
           }`}
         >
-          Unread ({adminNotifs.filter(n => !n.isRead).length})
+          Unread ({notifications.filter(n => !n.isRead).length})
         </button>
       </div>
 

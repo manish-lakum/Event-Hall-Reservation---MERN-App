@@ -41,15 +41,6 @@ const Navbar = () => {
         { name: 'Calendar', path: '/calendar', icon: Calendar }
       ];
 
-  const handleRoleToggle = () => {
-    if (currentRole === 'User') {
-      switchRole('Admin');
-      navigate('/admin/dashboard');
-    } else {
-      switchRole('User');
-      navigate('/dashboard');
-    }
-  };
 
   return (
     <nav className="bg-[#4338CA] text-white shadow-md sticky top-0 z-40">
@@ -93,17 +84,6 @@ const Navbar = () => {
 
           {/* Action Tools & User Profile */}
           <div className="hidden md:flex items-center gap-3">
-            {/* Quick Demo Role Switcher Badge */}
-            <button
-              onClick={handleRoleToggle}
-              title="Click to toggle demo portal mode"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-indigo-800 text-teal-300 border border-indigo-500 hover:bg-indigo-900 hover:border-teal-400 transition shadow-sm"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
-              <span>Role: <strong className="text-white">{currentRole}</strong></span>
-              <span className="text-[10px] bg-teal-600 text-white px-1.5 py-0.5 rounded ml-1">Switch</span>
-            </button>
-
             {currentUser ? (
               <div className="flex items-center gap-3 pl-2 border-l border-indigo-500">
                 {/* Notifications Bell */}
@@ -155,13 +135,6 @@ const Navbar = () => {
 
           {/* Mobile menu trigger button */}
           <div className="flex md:hidden items-center gap-2">
-            <button
-              onClick={handleRoleToggle}
-              className="text-xs bg-indigo-800 text-teal-300 px-2 py-1 rounded border border-indigo-500 font-semibold"
-            >
-              {currentRole}
-            </button>
-
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 text-indigo-100 hover:text-white rounded-lg focus:outline-none"
