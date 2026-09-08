@@ -1,9 +1,30 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Navigate, useLocation } from 'react-router-dom';
 import Navbar from '../components/common/Navbar';
 import Footer from '../components/common/Footer';
+import { useApp } from '../context/AppContext';
+
+const PROTECTED_USER_ROUTES = [
+  '/dashboard',
+  '/reserve',
+  '/my-reservations',
+  '/calendar',
+  '/notifications',
+  '/profile'
+];
 
 const UserLayout = () => {
+  const { token, currentUser, loading } = useApp();
+  const location = useLocation();
+
+  const isProtectedRoute = PROTECTED_USER_ROUTES.some(route =>
+    location.pathname === route || location.pathname.startsWith('/my-reservations/')
+  );
+
+  if (!loading && isProtectedRoute && (!token || !currentUser)) {
+    return <Navigate to="/login" replace />;
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#F8FAFC]">
       <Navbar />

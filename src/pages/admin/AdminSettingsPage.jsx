@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
-import { Settings, Save, CheckCircle, ShieldCheck, Building2, Sliders } from 'lucide-react';
+import { Settings, Save, CheckCircle, ShieldCheck, Building2, Sliders, User, Camera } from 'lucide-react';
 
 const defaultSettings = {
   collegeName: 'Sardar Vallabhbhai Global University (SVGU)',
@@ -20,7 +21,7 @@ const defaultSettings = {
 };
 
 const AdminSettingsPage = () => {
-  const { settings, updateSettings } = useApp();
+  const { currentUser, settings, updateSettings } = useApp();
   const [form, setForm] = useState(() => ({
     ...defaultSettings,
     ...(settings || {}),
@@ -70,6 +71,34 @@ const AdminSettingsPage = () => {
           <span>{message}</span>
         </div>
       )}
+
+      {/* Admin Profile Overview Card */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <img
+            src={currentUser?.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=250&q=80'}
+            alt={currentUser?.name}
+            className="w-14 h-14 rounded-full object-cover border-2 border-[#0D9488]"
+          />
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-900">{currentUser?.name || 'Administrator'}</h2>
+              <span className="bg-[#0D9488] text-white text-[10px] font-bold px-2 py-0.5 rounded">
+                {currentUser?.role === 'ADMIN' ? 'ADMIN' : (currentUser?.role || 'ADMIN')}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500">{currentUser?.email}</p>
+          </div>
+        </div>
+
+        <Link
+          to="/admin/profile"
+          className="bg-[#4338CA] text-white text-xs px-4 py-2 rounded-xl font-bold hover:bg-indigo-800 transition flex items-center gap-1.5 shadow-xs shrink-0"
+        >
+          <Camera className="w-3.5 h-3.5 text-teal-300" />
+          Edit Admin Profile & Photo
+        </Link>
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 text-xs">
         {/* Section 1: College Info */}

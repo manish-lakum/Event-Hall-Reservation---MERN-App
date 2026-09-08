@@ -8,7 +8,6 @@ import {
   Bell,
   User as UserIcon,
   LogOut,
-  ShieldCheck,
   Menu,
   X,
   LayoutDashboard,
@@ -16,11 +15,15 @@ import {
 } from 'lucide-react';
 
 const Navbar = () => {
-  const { currentUser, currentRole, switchRole, logout, notifications, settings } = useApp();
+  const { currentUser, logout, notifications, settings } = useApp();
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login', { replace: true });
+  };
 
   const unreadUserNotifs = notifications.filter(n => n.recipientType === 'User' && !n.isRead);
 
@@ -115,9 +118,9 @@ const Navbar = () => {
                 </Link>
 
                 <button
-                  onClick={logout}
+                  onClick={handleLogout}
                   title="Logout"
-                  className="p-2 text-indigo-200 hover:text-white rounded-lg hover:bg-indigo-600 transition"
+                  className="p-2 text-indigo-200 hover:text-white rounded-lg hover:bg-indigo-600 transition cursor-pointer"
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -165,7 +168,7 @@ const Navbar = () => {
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center gap-3 px-3 py-2 text-indigo-100 hover:bg-indigo-800 rounded-md"
               >
-                <img src={currentUser.avatar} alt="" className="w-8 h-8 rounded-full" />
+                <img src={currentUser.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=250&q=80'} alt="" className="w-8 h-8 rounded-full object-cover" />
                 <div>
                   <div className="font-semibold text-white">{currentUser.name}</div>
                   <div className="text-xs text-indigo-300">{currentUser.email}</div>
@@ -173,10 +176,10 @@ const Navbar = () => {
               </Link>
               <button
                 onClick={() => {
-                  logout();
                   setMobileMenuOpen(false);
+                  handleLogout();
                 }}
-                className="w-full text-left flex items-center gap-2 px-3 py-2 text-rose-300 hover:bg-indigo-800 rounded-md font-medium"
+                className="w-full text-left flex items-center gap-2 px-3 py-2 text-rose-300 hover:bg-indigo-800 rounded-md font-medium cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
                 Sign Out

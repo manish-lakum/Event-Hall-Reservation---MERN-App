@@ -87,6 +87,7 @@ export const AppProvider = ({ children }) => {
   const mapUser = useCallback((u) => {
     if (!u) return null;
     const userData = u.user || u;
+    const userPhoto = userData.profilePhoto || userData.avatar || '';
     return {
       ...userData,
       id: userData._id || userData.id,
@@ -97,6 +98,8 @@ export const AppProvider = ({ children }) => {
       collegeId: userData.collegeId || '',
       userType: userData.userType || 'STUDENT',
       role: userData.role || 'USER',
+      avatar: userPhoto,
+      profilePhoto: userPhoto,
       status: userData.isActive !== false ? 'Active' : 'Inactive',
       createdAtFormatted: formatDateTimeIST(userData.createdAt)
     };
@@ -128,12 +131,22 @@ export const AppProvider = ({ children }) => {
             localStorage.setItem('aitm_user', JSON.stringify(mappedUser));
             const role = mappedUser.role === 'ADMIN' ? 'Admin' : 'User';
             setCurrentRole(role);
+            localStorage.setItem('aitm_role', role);
+          } else {
+            authService.logout();
+            setToken(null);
+            setCurrentUser(null);
+            setCurrentRole('User');
           }
         } catch {
           authService.logout();
           setToken(null);
           setCurrentUser(null);
+          setCurrentRole('User');
         }
+      } else {
+        setCurrentUser(null);
+        setCurrentRole('User');
       }
 
       // Fetch public halls
@@ -173,16 +186,28 @@ export const AppProvider = ({ children }) => {
   // Auth operations
   const login = async (email, password) => {
     try {
+      // Purge any stale session state before setting new session
+      authService.logout();
+      setToken(null);
+      setCurrentUser(null);
+      setReservations([]);
+      setNotifications([]);
+      setUnreadCount(0);
+
       const res = await authService.login(email, password);
       if (res.success && res.data) {
-        setToken(res.data.token);
+        const tokenVal = res.data.token;
         const mappedUser = mapUser(res.data.user);
+        const role = mappedUser.role === 'ADMIN' ? 'Admin' : 'User';
+
+        setToken(tokenVal);
         setCurrentUser(mappedUser);
-        const role = res.data.user.role === 'ADMIN' ? 'Admin' : 'User';
         setCurrentRole(role);
 
-        // Reload user session data
-        await loadInitialData();
+        localStorage.setItem('aitm_token', tokenVal);
+        localStorage.setItem('aitm_user', JSON.stringify(mappedUser));
+        localStorage.setItem('aitm_role', role);
+
         return { success: true, role, user: mappedUser };
       }
       return { success: false, message: res.message || 'Login failed' };
@@ -202,8 +227,13 @@ export const AppProvider = ({ children }) => {
   };
 
   const switchRole = (role) => {
-    setCurrentRole(role);
-    localStorage.setItem('aitm_role', role);
+    if (currentUser?.role === 'ADMIN') {
+      setCurrentRole(role);
+      localStorage.setItem('aitm_role', role);
+    } else {
+      setCurrentRole('User');
+      localStorage.setItem('aitm_role', 'User');
+    }
   };
 
   // Availability Checker using live Backend API
@@ -539,6 +569,22 @@ export const AppProvider = ({ children }) => {
     }
   };
 
+  const uploadProfilePhoto = async (photoData) => {
+    try {
+      const res = await profileService.uploadProfilePhoto(photoData);
+      if (res.success && res.data) {
+        const userData = res.data.user || res.data;
+        const updated = mapUser(userData);
+        setCurrentUser(updated);
+        localStorage.setItem('aitm_user', JSON.stringify(updated));
+        return { success: true, user: updated };
+      }
+      return { success: false, message: res.message || 'Failed to upload profile photo' };
+    } catch (err) {
+      return { success: false, message: err.message || 'Error uploading profile photo' };
+    }
+  };
+
   const updateSettings = (newSettings) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
   };
@@ -579,6 +625,7 @@ export const AppProvider = ({ children }) => {
         markNotificationRead,
         markAllNotificationsRead,
         updateUserProfile,
+        uploadProfilePhoto,
         updateSettings,
         mapHall,
         mapReservation,

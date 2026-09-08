@@ -62,11 +62,10 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/verify-otp" element={<OtpVerificationPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            {/* Admin Direct URL Auth Entry Points */}
+            <Route path="/admin" element={<AdminRootRoute />} />
+            <Route path="/admin/login" element={<AdminRootRoute />} />
           </Route>
-
-          {/* Admin Direct URL Auth Entry Points */}
-          <Route path="/admin" element={<AdminRootRoute />} />
-          <Route path="/admin/login" element={<AdminRootRoute />} />
 
           {/* User Portal Routes */}
           <Route element={<UserLayout />}>
@@ -95,6 +94,7 @@ function App() {
             <Route path="/admin/users" element={<UserManagementPage />} />
             <Route path="/admin/reports" element={<ReportsPage />} />
             <Route path="/admin/notifications" element={<AdminNotificationsPage />} />
+            <Route path="/admin/profile" element={<UserProfilePage />} />
             <Route path="/admin/settings" element={<AdminSettingsPage />} />
           </Route>
 

@@ -11,9 +11,9 @@ import {
   BarChart3,
   Bell,
   Settings,
+  User,
   LogOut,
   ShieldCheck,
-  ArrowLeft,
   X
 } from 'lucide-react';
 
@@ -38,12 +38,13 @@ const AdminSidebar = ({ isOpen, onClose }) => {
       icon: Bell,
       badge: unreadAdminNotifs.length > 0 ? unreadAdminNotifs.length : null
     },
+    { name: 'Admin Profile', path: '/admin/profile', icon: User },
     { name: 'Settings', path: '/admin/settings', icon: Settings }
   ];
 
-  const handleSwitchToUser = () => {
-    switchRole('User');
-    navigate('/dashboard');
+  const handleAdminLogout = () => {
+    logout();
+    navigate('/admin/login', { replace: true });
   };
 
   return (
@@ -108,18 +109,10 @@ const AdminSidebar = ({ isOpen, onClose }) => {
         </div>
 
         {/* Footer Actions */}
-        <div className="p-3 border-t border-indigo-700 bg-indigo-900/60 space-y-2">
+        <div className="p-3 border-t border-indigo-700 bg-indigo-900/60">
           <button
-            onClick={handleSwitchToUser}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold bg-indigo-700 text-teal-200 rounded-lg hover:bg-indigo-600 transition border border-indigo-500 shadow-sm"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Switch to User Portal
-          </button>
-
-          <button
-            onClick={logout}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-indigo-200 hover:text-rose-200 hover:bg-rose-900/30 rounded-lg transition"
+            onClick={handleAdminLogout}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold text-indigo-200 hover:text-rose-200 hover:bg-rose-900/30 rounded-lg transition cursor-pointer"
           >
             <LogOut className="w-3.5 h-3.5" />
             Log Out System

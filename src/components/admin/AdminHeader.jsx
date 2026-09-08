@@ -39,20 +39,26 @@ const AdminHeader = ({ onMenuClick, title }) => {
         </Link>
 
         {/* Admin User Profile Tag */}
-        <div className="flex items-center gap-2.5 pl-3 border-l border-slate-200">
+        <Link
+          to="/admin/profile"
+          className="flex items-center gap-2.5 pl-3 border-l border-slate-200 hover:opacity-90 transition group cursor-pointer"
+          title="View & Edit Admin Profile"
+        >
           <img
             src={currentUser?.avatar || 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=250&q=80'}
-            alt="Admin"
+            alt={currentUser?.name || 'Admin'}
             className="w-8 h-8 rounded-full object-cover border-2 border-[#0D9488]"
           />
           <div className="hidden sm:block text-left">
-            <div className="text-xs font-bold text-slate-800 flex items-center gap-1">
+            <div className="text-xs font-bold text-slate-800 flex items-center gap-1 group-hover:text-[#4338CA]">
               <span>{currentUser?.name || 'Administrator'}</span>
               <ShieldCheck className="w-3 h-3 text-[#0D9488]" />
             </div>
-            <div className="text-[10px] text-slate-500 font-semibold">{currentUser?.userType || 'Admin'}</div>
+            <div className="text-[10px] text-slate-500 font-semibold">
+              {currentUser?.role === 'ADMIN' ? 'ADMIN' : (currentUser?.role || 'ADMIN')}
+            </div>
           </div>
-        </div>
+        </Link>
       </div>
     </header>
   );
