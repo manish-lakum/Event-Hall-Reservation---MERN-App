@@ -7,6 +7,7 @@ const { initReservationReminderJob } = require('./jobs/reservationReminderJob');
 
 // Route Imports
 const healthRoutes = require('./routes/healthRoutes');
+const helloRoutes = require('./routes/helloRoutes');
 const authRoutes = require('./routes/authRoutes');
 const hallRoutes = require('./routes/hallRoutes');
 const availabilityRoutes = require('./routes/availabilityRoutes');
@@ -49,6 +50,7 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Mount Application Routes
 app.use('/api/health', healthRoutes);
+app.use('/api/hello', helloRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/halls', availabilityRoutes);     // Mounts /api/halls/:id/availability and /api/halls/:id/schedule
 app.use('/api', hallRoutes);                   // Mounts /api/halls and /api/admin/halls endpoints
