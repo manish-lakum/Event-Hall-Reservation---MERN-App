@@ -25,7 +25,7 @@ const ReserveHallPage = () => {
   const [formData, setFormData] = useState({
     userName: currentUser?.name || '',
     userEmail: currentUser?.email || '',
-    userType: currentUser?.userType || 'STUDENT',
+    userType: currentUser?.userType || 'FACULTY',
     department: currentUser?.department || 'Computer Science',
     employeeId: currentUser?.collegeId || 'ID-001',
 
@@ -59,9 +59,16 @@ const ReserveHallPage = () => {
     });
   };
 
+  const isFacultyOrAdmin = currentUser?.role === 'ADMIN' || currentUser?.userType === 'FACULTY';
+
   const handlePreSubmit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (!isFacultyOrAdmin) {
+      setError('Only Faculty members are authorized to reserve event halls.');
+      return;
+    }
 
     if (!effectiveHallId) {
       setError('Please select a valid hall.');
@@ -133,6 +140,13 @@ const ReserveHallPage = () => {
           Complete the form below to submit an official reservation request to Campus Estate Management.
         </p>
       </div>
+
+      {!isFacultyOrAdmin && (
+        <div className="p-4 bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-xl font-semibold flex items-center gap-2">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+          <span>Notice: Only Faculty members (and Campus Administrators) are authorized to submit hall reservation requests.</span>
+        </div>
+      )}
 
       {error && (
         <div className="p-4 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl font-semibold flex items-center gap-2">
@@ -377,8 +391,8 @@ const ReserveHallPage = () => {
 
           <button
             type="submit"
-            disabled={loading}
-            className="px-8 py-3.5 text-sm font-extrabold text-white bg-[#0D9488] hover:bg-teal-700 rounded-xl transition shadow-md flex items-center gap-2 disabled:opacity-50"
+            disabled={loading || !isFacultyOrAdmin}
+            className="px-8 py-3.5 text-sm font-extrabold text-white bg-[#0D9488] hover:bg-teal-700 rounded-xl transition shadow-md flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <CheckCircle2 className="w-5 h-5" />
             {loading ? 'Validating...' : 'Submit Reservation Request'}

@@ -7,6 +7,10 @@ export const adminUserService = {
     return await api.get(endpoint);
   },
 
+  createUser: async (userData) => {
+    return await api.post('/admin/users', userData);
+  },
+
   getUserById: async (id) => {
     return await api.get(`/admin/users/${id}`);
   },
@@ -19,3 +23,4 @@ export const adminUserService = {
     return await api.patch(`/admin/users/${id}/status`, { isActive });
   }
 };
+

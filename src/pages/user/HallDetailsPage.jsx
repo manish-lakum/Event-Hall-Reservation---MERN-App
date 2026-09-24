@@ -227,6 +227,7 @@ const HallDetailsPage = () => {
               <div className="pt-4 border-t border-slate-200 text-xs text-slate-500 space-y-2">
                 <div className="font-bold text-slate-700">Reservation Guidelines:</div>
                 <ul className="list-disc pl-4 space-y-1">
+                  <li>Only Faculty members are authorized to reserve halls.</li>
                   <li>Requests must be submitted at least 24 hours prior.</li>
                   <li>Expected participants cannot exceed {hall.capacity}.</li>
                   <li>Admin review required before confirmation.</li>

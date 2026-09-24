@@ -1,37 +1,75 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useApp } from '../../context/AppContext';
 import StatusBadge from '../../components/common/StatusBadge';
+import EmptyState from '../../components/common/EmptyState';
 import { Search, CheckCircle2, AlertTriangle, ArrowRight } from 'lucide-react';
+
+const getLocalDateString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getDefaultStartTime = () => {
+  const now = new Date();
+  const nextHour = (now.getHours() + 1) % 24;
+  const hourStr = String(nextHour < 8 ? 8 : (nextHour > 18 ? 18 : nextHour)).padStart(2, '0');
+  return `${hourStr}:00`;
+};
+
+const getDefaultEndTime = (startStr) => {
+  const hours = parseInt(startStr.split(':')[0], 10) || 10;
+  const endHour = Math.min(hours + 2, 20);
+  return `${String(endHour).padStart(2, '0')}:00`;
+};
 
 const CheckAvailabilityPage = () => {
   const [searchParams] = useSearchParams();
   const { halls, checkAvailability, reservations, blockedSlots } = useApp();
 
-  const initialHallId = searchParams.get('hallId') || (halls[0]?.id ? halls[0].id : '');
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateString();
+  const initialStart = getDefaultStartTime();
+  const initialEnd = getDefaultEndTime(initialStart);
 
-  const [selectedHallId, setSelectedHallId] = useState(initialHallId);
+  const [selectedHallId, setSelectedHallId] = useState('');
   const [selectedDate, setSelectedDate] = useState(todayStr);
-  const [startTime, setStartTime] = useState('10:00');
-  const [endTime, setEndTime] = useState('12:00');
+  const [startTime, setStartTime] = useState(initialStart);
+  const [endTime, setEndTime] = useState(initialEnd);
   const [loading, setLoading] = useState(false);
-
   const [checkResult, setCheckResult] = useState(null);
 
-  const effectiveHallId = selectedHallId || (halls[0]?.id ? halls[0].id : '');
-  const selectedHall = halls.find(h => h.id === effectiveHallId) || halls[0];
+  useEffect(() => {
+    const urlHallId = searchParams.get('hallId');
+    if (urlHallId) {
+      setSelectedHallId(urlHallId);
+    } else if (halls.length > 0 && !selectedHallId) {
+      setSelectedHallId(halls[0].id || halls[0]._id);
+    }
+  }, [searchParams, halls]);
+
+  const effectiveHallId = selectedHallId || (halls[0]?.id ? halls[0].id : halls[0]?._id ? halls[0]._id : '');
+  const selectedHall = halls.find(h => String(h.id || h._id) === String(effectiveHallId)) || halls[0];
 
   // Schedule for selected date & hall
   const dayReservations = reservations.filter(
-    r => (r.hallId === effectiveHallId || r.hall?._id === effectiveHallId) &&
-      (r.date === selectedDate || r.eventDate === selectedDate) &&
-      (r.status === 'Approved' || r.status === 'Pending')
+    r => {
+      const rHallId = String(r.hallId || r.hall?._id || r.hall || '');
+      const targetHallId = String(effectiveHallId || '');
+      const rDate = r.date || r.eventDate;
+      const statusLower = String(r.status || '').toLowerCase();
+      return rHallId === targetHallId && rDate === selectedDate && (statusLower === 'approved' || statusLower === 'pending');
+    }
   );
 
   const dayBlocks = blockedSlots.filter(
-    b => (b.hallId === effectiveHallId || b.hall?._id === effectiveHallId) &&
-      b.startDate <= selectedDate && b.endDate >= selectedDate
+    b => {
+      const bHallId = String(b.hallId || b.hall?._id || b.hall || '');
+      const targetHallId = String(effectiveHallId || '');
+      return bHallId === targetHallId && b.startDate <= selectedDate && b.endDate >= selectedDate;
+    }
   );
 
   const handleCheck = async (e) => {
@@ -183,9 +221,11 @@ const CheckAvailabilityPage = () => {
                   <h3 className="font-extrabold text-sm">
                     {checkResult.available
                       ? 'Slot Available!'
-                      : (checkResult.reason === 'PAST_TIME' || checkResult.message?.toLowerCase().includes('passed')
-                          ? 'Time Slot Expired'
-                          : 'Slot Conflict Detected')}
+                      : (checkResult.reason === 'PAST_TIME' || checkResult.message?.toLowerCase().includes('passed') || checkResult.message?.toLowerCase().includes('past date'))
+                      ? 'Time Slot Expired'
+                      : (checkResult.message?.toLowerCase().includes('outside hall operating hours') || checkResult.message?.toLowerCase().includes('operating hours'))
+                      ? 'Outside Operating Hours'
+                      : 'Slot Conflict Detected'}
                   </h3>
                   <p className="text-xs mt-1 leading-relaxed">{checkResult.message}</p>
                 </div>

@@ -139,10 +139,6 @@ const AdminReservationsPage = () => {
             >
               <option value="All">All User Types</option>
               <option value="FACULTY">Faculty</option>
-              <option value="STUDENT">Student</option>
-              <option value="STAFF">Staff</option>
-              <option value="DEPARTMENT">Department</option>
-              <option value="CLUB">Club/Committee</option>
             </select>
           </div>
 

@@ -51,7 +51,7 @@ const LoginPage = () => {
           </div>
           <h2 className="text-xl font-extrabold tracking-tight">User Portal Sign In</h2>
           <p className="text-xs text-indigo-200">
-            Event Hall Reservation System • Students & Faculty Portal
+            Event Hall Reservation System • Faculty Portal
           </p>
         </div>
 
@@ -74,7 +74,7 @@ const LoginPage = () => {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="rahul.verma@student.svgu.edu.in"
+                  placeholder="manishlakum@student.svgu.edu.in"
                   required
                   className="w-full pl-9 pr-4 py-2.5 text-xs rounded-lg border border-slate-300 focus:ring-2 focus:ring-[#4338CA] focus:border-transparent outline-hidden font-medium text-slate-800"
                 />

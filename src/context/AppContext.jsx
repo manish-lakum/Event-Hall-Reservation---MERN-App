@@ -63,7 +63,7 @@ export const AppProvider = ({ children }) => {
     hallName: r.hall?.hallName || r.hallName || 'Hall',
     userName: r.user?.name || r.userName || 'User',
     userEmail: r.user?.email || r.userEmail || '',
-    userType: r.user?.userType || r.userType || 'STUDENT',
+    userType: r.user?.userType || r.userType || 'FACULTY',
     department: r.user?.department || r.department || '',
     createdAt: r.createdAt,
     approvedAt: r.approvedAt,
@@ -96,7 +96,7 @@ export const AppProvider = ({ children }) => {
       department: userData.department || '',
       phone: userData.phone || '',
       collegeId: userData.collegeId || '',
-      userType: userData.userType || 'STUDENT',
+      userType: userData.userType || 'FACULTY',
       role: userData.role || 'USER',
       avatar: userPhoto,
       profilePhoto: userPhoto,
@@ -241,14 +241,16 @@ export const AppProvider = ({ children }) => {
     try {
       const res = await hallService.checkAvailability(hallId, date, startTime, endTime);
       if (res.success && res.data) {
+        const isAvail = Boolean(res.data.isAvailable ?? res.data.available);
         return {
-          available: res.data.isAvailable,
-          message: res.data.isAvailable
+          available: isAvail,
+          reason: res.data.reason || '',
+          message: isAvail
             ? 'Hall is available for reservation!'
-            : res.data.reason || 'Requested time slot is unavailable.'
+            : (res.data.message || res.data.reason || 'Requested time slot is unavailable.')
         };
       }
-      return { available: false, message: 'Could not verify availability.' };
+      return { available: false, message: res?.message || 'Could not verify availability.' };
     } catch (err) {
       return { available: false, message: err.message || 'Availability check failed.' };
     }
@@ -484,7 +486,7 @@ export const AppProvider = ({ children }) => {
   // User Management Actions
   const fetchUsers = async (params = {}) => {
     try {
-      const res = await adminUserService.getAllUsers(params);
+      const res = await adminUserService.getAllUsers({ limit: 1000, ...params });
       if (res.success && Array.isArray(res.data)) {
         const mapped = res.data.map(mapUser);
         setUsers(mapped);
@@ -494,6 +496,20 @@ export const AppProvider = ({ children }) => {
       console.error('Fetch users error:', err.message);
     }
     return [];
+  };
+
+  const addUser = async (userData) => {
+    try {
+      const res = await adminUserService.createUser(userData);
+      if (res.success && res.data) {
+        const newUser = mapUser(res.data);
+        setUsers(prev => [newUser, ...prev]);
+        return { success: true, user: newUser, message: 'User account created successfully.' };
+      }
+      return { success: false, message: res.message || 'Failed to create user' };
+    } catch (err) {
+      return { success: false, message: err.message || 'Error creating user account' };
+    }
   };
 
   const toggleUserStatus = async (userId) => {
@@ -510,6 +526,7 @@ export const AppProvider = ({ children }) => {
       console.error('Toggle user status error:', err.message);
     }
   };
+
 
   // Notifications Actions
   const fetchNotifications = async () => {
@@ -620,6 +637,7 @@ export const AppProvider = ({ children }) => {
         addBlockedSlot,
         deleteBlockedSlot,
         fetchUsers,
+        addUser,
         toggleUserStatus,
         fetchNotifications,
         markNotificationRead,

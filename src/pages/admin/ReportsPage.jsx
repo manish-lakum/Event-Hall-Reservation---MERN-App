@@ -77,20 +77,12 @@ const ReportsPage = () => {
 
   const userTypeMap = {};
   (reportData?.userTypes || []).forEach(ut => {
-    let label = 'Student';
-    if (ut.userType === 'FACULTY') label = 'Faculty';
-    else if (ut.userType === 'STUDENT') label = 'Student';
-    else if (ut.userType === 'DEPARTMENT') label = 'Department';
-    else if (ut.userType === 'CLUB') label = 'Club/Committee';
-    else if (ut.userType === 'STAFF') label = 'Staff';
+    const label = ut.userType === 'FACULTY' ? 'Faculty' : 'Faculty';
     userTypeMap[label] = (userTypeMap[label] || 0) + (ut.reservationCount || ut.approvedCount || 0);
   });
 
   const userTypeBreakdown = {
-    Faculty: userTypeMap['Faculty'] || 0,
-    Student: userTypeMap['Student'] || 0,
-    Department: userTypeMap['Department'] || 0,
-    'Club/Committee': userTypeMap['Club/Committee'] || 0
+    Faculty: userTypeMap['Faculty'] || 0
   };
 
   const handleExportCSV = async () => {
