@@ -17,20 +17,26 @@ const checkAvailability = async (req, res, next) => {
 
     const check = await verifyHallAvailability(id, date, startTime, endTime);
 
-    // If validation error (past date, invalid format, outside hours, non-existent/disabled hall)
-    if (!check.available && check.statusCode === 400) {
-      return sendError(res, 400, check.errorMsg);
-    }
-
+    // If Hall ID invalid or non-existent (404)
     if (!check.available && check.statusCode === 404) {
       return sendError(res, 404, check.errorMsg);
     }
 
+    // Validation conflict (e.g. past date, outside hours, invalid format) -> return 200 with available: false
+    if (!check.available && check.errorMsg) {
+      return sendSuccess(res, 200, check.errorMsg, {
+        available: false,
+        isAvailable: false,
+        reason: check.errorMsg,
+        message: check.errorMsg
+      });
+    }
+
     // Availability Result (HTTP 200 with available: true/false)
-    if (check.result.available) {
+    if (check.result?.available) {
       return sendSuccess(res, 200, 'Hall is available', check.result);
     } else {
-      return sendSuccess(res, 200, 'Hall is not available for the selected slot', check.result);
+      return sendSuccess(res, 200, check.result?.message || 'Hall is not available for the selected slot', check.result);
     }
   } catch (error) {
     next(error);

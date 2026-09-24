@@ -28,7 +28,7 @@ const registerUser = async (req, res, next) => {
       email,
       password,
       role: 'USER', // Default registration role is USER
-      userType: userType || 'STUDENT',
+      userType: 'FACULTY',
       department: department || 'General',
       collegeId: collegeId || '',
       phone: phone || ''

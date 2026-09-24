@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const User = require('../models/userModel');
 const { Reservation } = require('../models/Reservation');
 
-const ALLOWED_USER_TYPES = ['STUDENT', 'FACULTY', 'STAFF', 'CLUB', 'DEPARTMENT'];
+const ALLOWED_USER_TYPES = ['FACULTY'];
 
 /**
  * Fetch Logged-in User Profile
@@ -136,7 +136,7 @@ const changeUserPassword = async (userId, { currentPassword, newPassword, confir
  * Admin: Get All Users (Paginated & Filtered)
  */
 const getAllUsersAdmin = async (options = {}) => {
-  const { search, role, userType, department, isActive, page = 1, limit = 10, sort } = options;
+  const { search, role, userType, department, isActive, page = 1, limit = 1000, sort } = options;
 
   const query = {};
 
@@ -172,7 +172,7 @@ const getAllUsersAdmin = async (options = {}) => {
   else if (sort === 'createdAt_asc') sortOption = { createdAt: 1 };
 
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
-  const limitNum = Math.max(1, parseInt(limit, 10) || 10);
+  const limitNum = Math.max(1, parseInt(limit, 10) || 1000);
   const skip = (pageNum - 1) * limitNum;
 
   const total = await User.countDocuments(query);
@@ -295,6 +295,61 @@ const toggleUserStatusAdmin = async (targetUserId, currentAdminId, isActive) => 
   return updatedUser;
 };
 
+/**
+ * Admin: Create New User Account
+ */
+const createUserAdmin = async (userData) => {
+  const { name, email, password, role, userType, department, collegeId, phone } = userData;
+
+  if (!name || !String(name).trim()) {
+    throw new Error('Please provide full name');
+  }
+
+  if (!email || !String(email).trim()) {
+    throw new Error('Please provide email address');
+  }
+
+  if (!password || String(password).length < 6) {
+    throw new Error('Password must be at least 6 characters long');
+  }
+
+  const emailStr = String(email).trim().toLowerCase();
+  const existingUser = await User.findOne({ email: emailStr });
+  if (existingUser) {
+    throw new Error('User account with this email address already exists');
+  }
+
+  let formattedType = 'FACULTY';
+  if (userType) {
+    formattedType = String(userType).toUpperCase();
+    if (!ALLOWED_USER_TYPES.includes(formattedType)) {
+      throw new Error(`Invalid userType. Allowed values: ${ALLOWED_USER_TYPES.join(', ')}`);
+    }
+  }
+
+  let formattedRole = 'USER';
+  if (role) {
+    formattedRole = String(role).toUpperCase();
+    if (!['USER', 'ADMIN'].includes(formattedRole)) {
+      throw new Error('Invalid role. Allowed values: USER, ADMIN');
+    }
+  }
+
+  const newUser = await User.create({
+    name: String(name).trim(),
+    email: emailStr,
+    password: String(password),
+    role: formattedRole,
+    userType: formattedType,
+    department: department ? String(department).trim() : 'General',
+    collegeId: collegeId ? String(collegeId).trim() : '',
+    phone: phone ? String(phone).trim() : ''
+  });
+
+  const createdUser = await User.findById(newUser._id).select('-password');
+  return createdUser;
+};
+
 module.exports = {
   getUserProfile,
   updateUserProfile,
@@ -303,5 +358,7 @@ module.exports = {
   getAllUsersAdmin,
   getUserByIdAdmin,
   updateUserAdmin,
-  toggleUserStatusAdmin
+  toggleUserStatusAdmin,
+  createUserAdmin
 };
+

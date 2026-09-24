@@ -64,11 +64,11 @@ const getAdminDashboardData = async () => {
   const activeUsers = await User.countDocuments({ role: 'USER', isActive: true });
   const inactiveUsers = await User.countDocuments({ role: 'USER', isActive: false });
 
-  const students = await User.countDocuments({ role: 'USER', userType: 'STUDENT' });
   const faculty = await User.countDocuments({ role: 'USER', userType: 'FACULTY' });
-  const staff = await User.countDocuments({ role: 'USER', userType: 'STAFF' });
-  const clubs = await User.countDocuments({ role: 'USER', userType: 'CLUB' });
-  const departments = await User.countDocuments({ role: 'USER', userType: 'DEPARTMENT' });
+  const students = 0;
+  const staff = 0;
+  const clubs = 0;
+  const departments = 0;
 
   // 3. Reservation Statistics
   const totalReservations = await Reservation.countDocuments({});

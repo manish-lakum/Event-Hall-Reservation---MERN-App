@@ -2,7 +2,8 @@ const {
   getAllUsersAdmin,
   getUserByIdAdmin,
   updateUserAdmin,
-  toggleUserStatusAdmin
+  toggleUserStatusAdmin,
+  createUserAdmin
 } = require('../services/userService');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 
@@ -21,6 +22,31 @@ const getAllUsers = async (req, res, next) => {
       pagination: result.pagination
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Create New User (Admin Only)
+ * @route   POST /api/admin/users
+ * @access  Private (Admin Only)
+ */
+const createUser = async (req, res, next) => {
+  try {
+    const newUser = await createUserAdmin(req.body);
+    return sendSuccess(res, 201, 'User created successfully', newUser);
+  } catch (error) {
+    if (
+      error.message.includes('Please provide') ||
+      error.message.includes('at least 6 characters') ||
+      error.message.includes('Invalid userType') ||
+      error.message.includes('Invalid role')
+    ) {
+      return sendError(res, 400, error.message);
+    }
+    if (error.message.includes('already exists')) {
+      return sendError(res, 409, error.message);
+    }
     next(error);
   }
 };
@@ -95,7 +121,9 @@ const toggleUserStatus = async (req, res, next) => {
 
 module.exports = {
   getAllUsers,
+  createUser,
   getUserById,
   updateUser,
   toggleUserStatus
 };
+

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getAllUsers,
+  createUser,
   getUserById,
   updateUser,
   toggleUserStatus
@@ -13,8 +14,10 @@ const { authorizeRoles } = require('../middleware/roleMiddleware');
 router.use(protect, authorizeRoles('ADMIN'));
 
 router.get('/', getAllUsers);
+router.post('/', createUser);
 router.get('/:id', getUserById);
 router.patch('/:id', updateUser);
 router.patch('/:id/status', toggleUserStatus);
 
 module.exports = router;
+

@@ -32,6 +32,11 @@ const createReservation = async (req, res, next) => {
       additionalNotes
     } = req.body;
 
+    // Check Faculty Authorization (Only Faculty and Admin can reserve halls)
+    if (req.user.role !== 'ADMIN' && req.user.userType !== 'FACULTY') {
+      return sendError(res, 403, 'Only Faculty members are authorized to reserve event halls.');
+    }
+
     // Validate Required Inputs
     if (!hallId || !eventTitle || !eventType || !eventDescription || !eventDate || !startTime || !endTime || expectedParticipants === undefined) {
       return sendError(res, 400, 'Please provide all required fields: hallId, eventTitle, eventType, eventDescription, eventDate, startTime, endTime, expectedParticipants');

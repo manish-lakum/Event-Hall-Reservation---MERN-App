@@ -25,113 +25,14 @@ const getOffsetDate = (offsetDays) => {
 // Seed Users Data
 const usersSeedData = [
   {
-    name: 'Rahul Verma',
-    email: 'rahul.verma@student.svgu.edu.in',
+    name: 'Manish Lakum',
+    email: 'manishlakum@student.svgu.edu.in',
     password: 'studentpassword123',
     role: 'USER',
-    userType: 'STUDENT',
-    department: 'MCA',
-    collegeId: 'STUDENT-2026-MCA',
+    userType: 'FACULTY',
+    department: 'Computer Science',
+    collegeId: 'FAC-CS-001',
     phone: '+91 98765 43210',
-    isActive: true
-  },
-  {
-    name: 'Priya Sharma',
-    email: 'priya.sharma@faculty.svgu.edu.in',
-    password: 'facultypassword123',
-    role: 'USER',
-    userType: 'FACULTY',
-    department: 'Computer Science',
-    collegeId: 'FAC-CS-102',
-    phone: '+91 98123 45678',
-    isActive: true
-  },
-  {
-    name: 'Amit Patel',
-    email: 'amit.patel@student.svgu.edu.in',
-    password: 'Demo@123',
-    role: 'USER',
-    userType: 'STUDENT',
-    department: 'BCA',
-    collegeId: 'STUDENT-2026-BCA',
-    phone: '+91 97654 32109',
-    isActive: true
-  },
-  {
-    name: 'Dr. Sneha Reddy',
-    email: 'sneha.reddy@faculty.svgu.edu.in',
-    password: 'Demo@123',
-    role: 'USER',
-    userType: 'FACULTY',
-    department: 'IT',
-    collegeId: 'FAC-IT-205',
-    phone: '+91 96543 21098',
-    isActive: true
-  },
-  {
-    name: 'Vikram Singh',
-    email: 'vikram.singh@staff.svgu.edu.in',
-    password: 'Demo@123',
-    role: 'USER',
-    userType: 'STAFF',
-    department: 'Management',
-    collegeId: 'STAFF-MGT-05',
-    phone: '+91 95432 10987',
-    isActive: true
-  },
-  {
-    name: 'Ananya Joshi',
-    email: 'ananya.joshi@club.svgu.edu.in',
-    password: 'Demo@123',
-    role: 'USER',
-    userType: 'CLUB',
-    department: 'MCA',
-    collegeId: 'CLUB-LEAD-01',
-    phone: '+91 94321 09876',
-    isActive: true
-  },
-  {
-    name: 'SVGU Tech Club',
-    email: 'tech.club@club.svgu.edu.in',
-    password: 'Demo@123',
-    role: 'USER',
-    userType: 'CLUB',
-    department: 'Computer Science',
-    collegeId: 'CLUB-TECH-02',
-    phone: '+91 93210 98765',
-    isActive: true
-  },
-  {
-    name: 'Sports Department',
-    email: 'sports.dept@department.svgu.edu.in',
-    password: 'Demo@123',
-    role: 'USER',
-    userType: 'DEPARTMENT',
-    department: 'Sports',
-    collegeId: 'DEPT-SPORTS-01',
-    phone: '+91 92109 87654',
-    isActive: true
-  },
-  {
-    name: 'Cultural Society',
-    email: 'cultural.soc@club.svgu.edu.in',
-    password: 'Demo@123',
-    role: 'USER',
-    userType: 'CLUB',
-    department: 'Management',
-    collegeId: 'CLUB-CULT-03',
-    phone: '+91 91098 76543',
-    isActive: true
-  },
-  {
-    name: 'HOD Computer Science',
-    email: 'hod.cs@faculty.svgu.edu.in',
-    password: 'Demo@123',
-    role: 'USER',
-    userType: 'FACULTY',
-    department: 'Computer Science',
-    collegeId: 'FAC-CS-HOD',
-    phone: '+91 90987 65432',
     isActive: true
   }
 ];
@@ -237,6 +138,9 @@ const seedDemoData = async () => {
       console.log('\x1b[36m%s\x1b[0m', '  [=] Admin already exists: admin@svgu.edu.in');
     }
 
+    // Delete all users EXCEPT admin@svgu.edu.in and manishlakum@student.svgu.edu.in
+    await User.deleteMany({ email: { $nin: ['admin@svgu.edu.in', 'manishlakum@student.svgu.edu.in'] } });
+
     // 2. Seed Users
     const userMap = {};
     for (const u of usersSeedData) {
@@ -245,10 +149,18 @@ const seedDemoData = async () => {
         existingUser = await User.create(u);
         console.log(`  [+] Created User: ${u.email} (${u.role})`);
       } else {
-        console.log(`  [=] User already exists: ${u.email}`);
+        existingUser.name = u.name;
+        existingUser.userType = 'FACULTY';
+        await existingUser.save();
+        console.log(`  [=] Updated User: ${u.email}`);
       }
       userMap[u.email] = existingUser;
     }
+
+    const manishUser = userMap['manishlakum@student.svgu.edu.in'];
+
+    // Delete all PENDING status reservations from DB
+    await Reservation.deleteMany({ status: 'PENDING' });
 
     // 3. Seed Halls
     const hallMap = {};
@@ -316,7 +228,7 @@ const seedDemoData = async () => {
     const reservationsSeedData = [
       // Past Approved / Completed
       {
-        user: userMap['rahul.verma@student.svgu.edu.in']?._id,
+        user: manishUser._id,
         hall: hallMap['Assembly Hall']?._id,
         eventTitle: 'Annual MCA Orientation Session',
         eventType: 'SEMINAR',
@@ -328,7 +240,7 @@ const seedDemoData = async () => {
         status: 'COMPLETED'
       },
       {
-        user: userMap['priya.sharma@faculty.svgu.edu.in']?._id,
+        user: manishUser._id,
         hall: hallMap['Seminar Hall']?._id,
         eventTitle: 'AI & Data Science Faculty Workshop',
         eventType: 'WORKSHOP',
@@ -340,7 +252,7 @@ const seedDemoData = async () => {
         status: 'COMPLETED'
       },
       {
-        user: userMap['tech.club@club.svgu.edu.in']?._id,
+        user: manishUser._id,
         hall: hallMap['Multipurpose Hall']?._id,
         eventTitle: '24-Hour Student Hackathon 2026',
         eventType: 'WORKSHOP',
@@ -354,7 +266,7 @@ const seedDemoData = async () => {
 
       // Past Rejected / Cancelled
       {
-        user: userMap['amit.patel@student.svgu.edu.in']?._id,
+        user: manishUser._id,
         hall: hallMap['Conference Hall']?._id,
         eventTitle: 'Gaming Club Informal Gathering',
         eventType: 'OTHER',
@@ -367,7 +279,7 @@ const seedDemoData = async () => {
         adminRemarks: 'Informal gaming events are not permitted in administrative conference halls.'
       },
       {
-        user: userMap['cultural.soc@club.svgu.edu.in']?._id,
+        user: manishUser._id,
         hall: hallMap['Main Auditorium']?._id,
         eventTitle: 'Dance Rehearsal Practice',
         eventType: 'CULTURAL',
@@ -382,7 +294,7 @@ const seedDemoData = async () => {
 
       // Recent / Today Approved
       {
-        user: userMap['hod.cs@faculty.svgu.edu.in']?._id,
+        user: manishUser._id,
         hall: hallMap['Conference Hall']?._id,
         eventTitle: 'Department Academic Council Meeting',
         eventType: 'MEETING',
@@ -396,7 +308,7 @@ const seedDemoData = async () => {
 
       // Upcoming Approved
       {
-        user: userMap['sneha.reddy@faculty.svgu.edu.in']?._id,
+        user: manishUser._id,
         hall: hallMap['Seminar Hall']?._id,
         eventTitle: 'Guest Lecture on Quantum Computing',
         eventType: 'GUEST_LECTURE',
@@ -408,7 +320,7 @@ const seedDemoData = async () => {
         status: 'APPROVED'
       },
       {
-        user: userMap['sports.dept@department.svgu.edu.in']?._id,
+        user: manishUser._id,
         hall: hallMap['Sports Hall']?._id,
         eventTitle: 'Inter-College Badminton Tournament',
         eventType: 'SPORTS',
@@ -420,7 +332,7 @@ const seedDemoData = async () => {
         status: 'APPROVED'
       },
       {
-        user: userMap['cultural.soc@club.svgu.edu.in']?._id,
+        user: manishUser._id,
         hall: hallMap['Main Auditorium']?._id,
         eventTitle: 'Annual Campus Cultural Fest 2026',
         eventType: 'CULTURAL',
@@ -432,7 +344,7 @@ const seedDemoData = async () => {
         status: 'APPROVED'
       },
       {
-        user: userMap['rahul.verma@student.svgu.edu.in']?._id,
+        user: manishUser._id,
         hall: hallMap['Assembly Hall']?._id,
         eventTitle: 'Placement Preparation & Mock Interviews',
         eventType: 'PRESENTATION',
@@ -444,55 +356,6 @@ const seedDemoData = async () => {
         status: 'APPROVED'
       },
 
-      // Upcoming Pending Requests (Waiting for Admin Review)
-      {
-        user: userMap['ananya.joshi@club.svgu.edu.in']?._id,
-        hall: hallMap['Multipurpose Hall']?._id,
-        eventTitle: 'Cybersecurity Awareness Workshop',
-        eventType: 'WORKSHOP',
-        eventDescription: 'Interactive session on ethical hacking principles and web safety.',
-        eventDate: getOffsetDate(5),
-        startTime: '10:00',
-        endTime: '13:00',
-        expectedParticipants: 120,
-        status: 'PENDING'
-      },
-      {
-        user: userMap['vikram.singh@staff.svgu.edu.in']?._id,
-        hall: hallMap['Conference Hall']?._id,
-        eventTitle: 'Staff Administration Coordination Meeting',
-        eventType: 'MEETING',
-        eventDescription: 'Monthly administrative staff workflow coordination meeting.',
-        eventDate: getOffsetDate(6),
-        startTime: '14:00',
-        endTime: '16:00',
-        expectedParticipants: 25,
-        status: 'PENDING'
-      },
-      {
-        user: userMap['amit.patel@student.svgu.edu.in']?._id,
-        hall: hallMap['Assembly Hall']?._id,
-        eventTitle: 'BCA Alumni Interaction Session',
-        eventType: 'GUEST_LECTURE',
-        eventDescription: 'Interaction session with distinguished BCA alumni working in industry.',
-        eventDate: getOffsetDate(12),
-        startTime: '11:00',
-        endTime: '13:00',
-        expectedParticipants: 180,
-        status: 'PENDING'
-      },
-      {
-        user: userMap['tech.club@club.svgu.edu.in']?._id,
-        hall: hallMap['Seminar Hall']?._id,
-        eventTitle: 'Web Development Bootcamp Part 1',
-        eventType: 'WORKSHOP',
-        eventDescription: 'Hands-on React and Node.js training session for beginner students.',
-        eventDate: getOffsetDate(15),
-        startTime: '14:00',
-        endTime: '17:00',
-        expectedParticipants: 90,
-        status: 'PENDING'
-      }
     ];
 
     let resCount = 0;

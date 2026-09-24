@@ -4,7 +4,7 @@ const { Hall } = require('../models/Hall');
 const { HallBlock } = require('../models/HallBlock');
 const User = require('../models/userModel');
 
-const ALLOWED_USER_TYPES = ['STUDENT', 'FACULTY', 'STAFF', 'CLUB', 'DEPARTMENT'];
+const ALLOWED_USER_TYPES = ['FACULTY'];
 
 /**
  * Helper: Parse time "HH:mm" into total minutes
