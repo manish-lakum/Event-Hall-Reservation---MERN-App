@@ -17,6 +17,8 @@ import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import OtpVerificationPage from './pages/auth/OtpVerificationPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 
+import HelloPage from './pages/user/HelloPage';
+
 function AdminRootRoute() {
   const { currentUser, currentRole } = useApp();
   if (currentUser && currentRole === 'Admin') {
@@ -79,6 +81,7 @@ function App() {
             <Route path="/calendar" element={<UserCalendarPage />} />
             <Route path="/notifications" element={<UserNotificationsPage />} />
             <Route path="/profile" element={<UserProfilePage />} />
+            <Route path="/hello" element={<HelloPage />} />
           </Route>
 
           {/* Admin Portal Routes */}
